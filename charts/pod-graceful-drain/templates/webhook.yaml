@@ -11,7 +11,8 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
-  - clientConfig:
+  - admissionReviewVersions: [v1]
+    clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
       {{- end }}
@@ -28,7 +29,8 @@ webhooks:
         resources: [pods]
     sideEffects: NoneOnDryRun
     timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
-  - clientConfig:
+  - admissionReviewVersions: [v1]
+    clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
       {{- end }}
