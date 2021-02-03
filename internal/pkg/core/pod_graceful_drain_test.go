@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	elbv2 "sigs.k8s.io/aws-load-balancer-controller/apis/elbv2/v1beta1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
@@ -186,14 +185,14 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []client.Object
+		existing []runtime.Object
 		config   []PodGracefulDrainConfig
 		given    *corev1.Pod
 		want     *podDelayedRemoveSpec
 	}{
 		{
 			name:     "bound pod should be delayed",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
@@ -203,7 +202,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			},
 		}, {
 			name:     "bound pod should be delayed with no-deny",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
@@ -214,7 +213,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "pod with readiness gate should be delayed",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
@@ -225,7 +224,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "pod with readiness gate should be delayed with no-deny",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
@@ -236,14 +235,14 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "unbound pod is deleted immediately",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig, noDenyConfig},
 			given:    &unboundPod,
 			want:     nil,
 		},
 		{
 			name:     "isolated pod should be delayed, again",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
@@ -253,7 +252,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "isolated pod should be delayed, again with no-deny",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
@@ -264,28 +263,28 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "not ready pod should be deleted immediately",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig, noDenyConfig},
 			given:    &notReadyPod,
 			want:     nil,
 		},
 		{
 			name:     "pod that deleted wait label should be deleted immediately",
-			existing: []client.Object{&normalNode, &tgbIP, &service},
+			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig, noDenyConfig},
 			given:    &nowaitPod,
 			want:     nil,
 		},
 		{
 			name:     "pod of instance type service is removed immediately",
-			existing: []client.Object{&normalNode, &tgbInstance, &service},
+			existing: []runtime.Object{&normalNode, &tgbInstance, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig, noDenyConfig},
 			given:    &boundPod,
 			want:     nil,
 		},
 		{
 			name:     "pod in unschedulable node is delayed, but without async delete",
-			existing: []client.Object{&unschedulableNode, &tgbIP, &service},
+			existing: []runtime.Object{&unschedulableNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
@@ -296,7 +295,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 		{
 			name:     "pod in tainted node is delayed, but without async delete",
-			existing: []client.Object{&taintedNode, &tgbIP, &service},
+			existing: []runtime.Object{&taintedNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
@@ -314,11 +313,11 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				k8sSchema := runtime.NewScheme()
 				assert.NilError(t, clientgoscheme.AddToScheme(k8sSchema))
 				assert.NilError(t, elbv2.AddToScheme(k8sSchema))
-				k8sClient := fake.NewFakeClientWithScheme(k8sSchema)
+				builder := fake.NewClientBuilder().WithScheme(k8sSchema)
 				for _, existing := range tt.existing {
-					assert.NilError(t, k8sClient.Create(ctx, existing.DeepCopyObject().(client.Object)))
+					builder = builder.WithRuntimeObjects(existing.DeepCopyObject())
 				}
-				assert.NilError(t, k8sClient.Create(ctx, tt.given.DeepCopyObject().(client.Object)))
+				k8sClient := builder.WithRuntimeObjects(tt.given).Build()
 
 				drain := NewPodGracefulDrain(k8sClient, zap.New(), &config)
 				spec, err := drain.getPodDelayedRemoveSpec(ctx, tt.given.DeepCopy(), now)

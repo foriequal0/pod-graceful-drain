@@ -301,13 +301,13 @@ func TestIsolate(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []*corev1.Pod
+		existing []runtime.Object
 		given    *corev1.Pod
 		want     *corev1.Pod
 	}{
 		{
 			name:     "pod should be isolated by attaching wait sentinel label, must have deleteAt annotation",
-			existing: []*corev1.Pod{normalPod},
+			existing: []runtime.Object{normalPod},
 			given:    normalPod,
 			want: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -323,17 +323,17 @@ func TestIsolate(t *testing.T) {
 			},
 		}, {
 			name:     "already isolated pod shouldn't be modified (1)",
-			existing: []*corev1.Pod{isolatedPod1},
+			existing: []runtime.Object{isolatedPod1},
 			given:    normalPod,
 			want:     isolatedPod1,
 		}, {
 			name:     "already isolated pod shouldn't be modified (2)",
-			existing: []*corev1.Pod{isolatedPod2},
+			existing: []runtime.Object{isolatedPod2},
 			given:    normalPod,
 			want:     isolatedPod2,
 		}, {
 			name:     "already isolated pod shouldn't be modified (3)",
-			existing: []*corev1.Pod{isolatedPod3},
+			existing: []runtime.Object{isolatedPod3},
 			given:    normalPod,
 			want:     isolatedPod3,
 		},
@@ -344,10 +344,11 @@ func TestIsolate(t *testing.T) {
 			ctx := context.Background()
 			k8sSchema := runtime.NewScheme()
 			assert.NilError(t, clientgoscheme.AddToScheme(k8sSchema))
-			k8sClient := fake.NewFakeClientWithScheme(k8sSchema)
+			builder := fake.NewClientBuilder().WithScheme(k8sSchema)
 			for _, existing := range tt.existing {
-				assert.NilError(t, k8sClient.Create(ctx, existing.DeepCopy()))
+				builder = builder.WithRuntimeObjects(existing.DeepCopyObject())
 			}
+			k8sClient := builder.Build()
 
 			pod := tt.given.DeepCopy()
 			err := core.Isolate(k8sClient, ctx, pod, deleteAt)
@@ -392,13 +393,13 @@ func TestDisableWaitLabel(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		existing []*corev1.Pod
+		existing []runtime.Object
 		given    *corev1.Pod
 		want     *corev1.Pod
 	}{
 		{
 			name:     "waiting pod should be disabled by setting empty string on the wait sentinel label",
-			existing: []*corev1.Pod{waitingPod},
+			existing: []runtime.Object{waitingPod},
 			given:    waitingPod,
 			want: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -410,17 +411,17 @@ func TestDisableWaitLabel(t *testing.T) {
 			},
 		}, {
 			name:     "already disabled pod shouldn't be modified (1)",
-			existing: []*corev1.Pod{disabledPod1},
+			existing: []runtime.Object{disabledPod1},
 			given:    waitingPod,
 			want:     disabledPod1,
 		}, {
 			name:     "already disabled pod shouldn't be modified (2)",
-			existing: []*corev1.Pod{disabledPod2},
+			existing: []runtime.Object{disabledPod2},
 			given:    waitingPod,
 			want:     disabledPod2,
 		}, {
 			name:     "already disabled pod shouldn't be modified (3)",
-			existing: []*corev1.Pod{disabledPod3},
+			existing: []runtime.Object{disabledPod3},
 			given:    waitingPod,
 			want:     disabledPod3,
 		},
@@ -431,10 +432,11 @@ func TestDisableWaitLabel(t *testing.T) {
 			ctx := context.Background()
 			k8sSchema := runtime.NewScheme()
 			assert.NilError(t, clientgoscheme.AddToScheme(k8sSchema))
-			k8sClient := fake.NewFakeClientWithScheme(k8sSchema)
+			builder := fake.NewClientBuilder().WithScheme(k8sSchema)
 			for _, existing := range tt.existing {
-				assert.NilError(t, k8sClient.Create(ctx, existing.DeepCopy()))
+				builder = builder.WithRuntimeObjects(existing.DeepCopyObject())
 			}
+			k8sClient := builder.Build()
 
 			pod := tt.given.DeepCopy()
 			err := core.DisableWaitLabel(k8sClient, ctx, pod)
