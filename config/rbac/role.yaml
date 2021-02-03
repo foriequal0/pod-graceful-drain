@@ -12,6 +12,7 @@ rules:
   - nodes
   verbs:
   - get
+  - list
   - watch
 - apiGroups:
   - ""
@@ -29,6 +30,7 @@ rules:
   - services
   verbs:
   - get
+  - list
   - watch
 - apiGroups:
   - elbv2.k8s.aws
