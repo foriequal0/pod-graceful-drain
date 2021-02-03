@@ -16,6 +16,7 @@ jobs:
         with:
           go-version: ^1.15
       - run: make test
+      - run: helm lint charts/pod-graceful-drain --strict
       - uses: codecov/codecov-action@v1
         with:
           file: ./cover.out
