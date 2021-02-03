@@ -66,7 +66,8 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	logger := v.logger.WithValues("eviction", types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name})
+	logger := v.logger.WithValues("pod", types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name})
+	logger.V(1).Info("Handle pod deletion")
 
 	handler, err := v.interceptor.Intercept(ctx, &req, &pod)
 	if err != nil {
@@ -80,6 +81,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 		return handler.HandleInterceptedAdmission()
 	}
 
+	logger.V(1).Info("Pod deletion is not intercepted")
 	return admission.Allowed("")
 }
 

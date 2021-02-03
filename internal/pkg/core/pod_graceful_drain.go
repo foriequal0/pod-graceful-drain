@@ -44,6 +44,12 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 	if err != nil || spec == nil {
 		return nil, err
 	}
+
+	d.getLoggerFor(pod).Info("pod delayed remove spec",
+		"isolate", spec.isolate,
+		"asyncDelete", spec.asyncDelete,
+		"duration", spec.duration.Truncate(time.Second).String())
+
 	return d.translateSpec(ctx, pod, spec, now)
 }
 
