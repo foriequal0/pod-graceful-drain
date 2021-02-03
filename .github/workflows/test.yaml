@@ -15,11 +15,9 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: ^1.15
-      - run: make test
+      - run: make test manifests docker-build
       - name: Manifests are up to date
-        run: |
-          make manifests
-          git diff --exit-code -- config/
+        run: git diff --exit-code -- config/
       - run: helm lint charts/pod-graceful-drain --strict
       - uses: codecov/codecov-action@v1
         with:
