@@ -19,4 +19,4 @@ require (
 	sigs.k8s.io/structured-merge-diff v1.0.1-0.20191108220359-b1b620dd3f06 // indirect
 )
 
-replace sigs.k8s.io/aws-load-balancer-controller => sigs.k8s.io/aws-load-balancer-controller v0.0.0-20210105183240-9a4e14094d75
+replace sigs.k8s.io/aws-load-balancer-controller => ./forks/sigs.k8s.io/aws-load-balancer-controller@v2.1.1
