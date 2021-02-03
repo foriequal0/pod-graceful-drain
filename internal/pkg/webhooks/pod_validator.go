@@ -19,7 +19,7 @@ import (
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/interceptors"
 	"github.com/go-logr/logr"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"net/http"
@@ -53,7 +53,7 @@ func (v *PodValidator) InjectDecoder(decoder *admission.Decoder) error {
 
 func (v *PodValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Operation {
-	case admissionv1beta1.Delete:
+	case admissionv1.Delete:
 		return v.handleDelete(ctx, req)
 	default:
 		return admission.Allowed("")
@@ -83,7 +83,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 	return admission.Allowed("")
 }
 
-// +kubebuilder:webhook:verbs=delete,path=/validate-core-v1-pod,mutating=false,failurePolicy=ignore,groups=core,resources=pods,versions=v1,name=vpod.pod-graceful-drain.io
+// +kubebuilder:webhook:admissionReviewVersions=v1,webhookVersions=v1,verbs=delete,path=/validate-core-v1-pod,mutating=false,failurePolicy=ignore,sideEffects=noneOnDryRun,groups=core,resources=pods,versions=v1,name=vpod.pod-graceful-drain.io
 
 func (v *PodValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &admission.Webhook{

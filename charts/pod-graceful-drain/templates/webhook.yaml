@@ -1,6 +1,6 @@
 {{ $tls := fromYaml ( include "pod-graceful-drain.gen-certs" . ) }}
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   {{- if .Values.enableCertManager }}
@@ -12,7 +12,9 @@ metadata:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
   - clientConfig:
-      caBundle: {{ if not .Values.enableCertManager -}}{{ $tls.caCert }}{{- else -}}Cg=={{ end }}
+      {{- if not .Values.enableCertManager }}
+      caBundle: {{ $tls.caCert }}
+      {{- end }}
       service:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
@@ -27,7 +29,9 @@ webhooks:
         resources: [pods]
     sideEffects: NoneOnDryRun
   - clientConfig:
-      caBundle: {{ if not .Values.enableCertManager -}}{{ $tls.caCert }}{{- else -}}Cg=={{ end }}
+      {{- if not .Values.enableCertManager }}
+      caBundle: {{ $tls.caCert }}
+      {{- end }}
       service:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}

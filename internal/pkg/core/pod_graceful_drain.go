@@ -213,14 +213,14 @@ func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.
 	return true, nil
 }
 
-func (d *PodGracefulDrain) Start(stop <-chan struct{}) error {
-	ctx := context.Background()
+func (d *PodGracefulDrain) Start(ctx context.Context) error {
 	d.logger.Info("starting pod-graceful-drain")
 	if err := d.cleanupPreviousRun(ctx); err != nil {
 		d.logger.Error(err, "error while cleaning pods up that are not removed in the previous run")
 	}
 
-	<-stop
+	<-ctx.Done()
+
 	d.logger.Info("stopping pod-graceful-drain")
 	d.delayer.Stop(d.config.GetDrainDuration(), defaultPodGracefulDrainCleanupTimeout)
 	d.logger.Info("stopped pod-graceful-drain")

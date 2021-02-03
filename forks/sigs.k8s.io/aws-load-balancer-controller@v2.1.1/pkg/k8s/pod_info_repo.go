@@ -86,7 +86,12 @@ func (r *defaultPodInfoRepo) ListKeys(_ context.Context) []types.NamespacedName 
 
 // Start will start the repo.
 // It leverages ListWatch to keep pod info stored locally to be in-sync with Kubernetes.
-func (r *defaultPodInfoRepo) Start(stopChan <-chan struct{}) error {
+func (r *defaultPodInfoRepo) Start(ctx context.Context) error {
+	stopChan := make(chan struct{})
+	go func() {
+		<- ctx.Done()
+		close(stopChan)
+	}()
 	r.rt.Run(stopChan)
 	return nil
 }

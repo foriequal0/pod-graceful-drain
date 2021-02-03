@@ -1,13 +1,14 @@
 
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   creationTimestamp: null
   name: validating-webhook-configuration
 webhooks:
-- clientConfig:
-    caBundle: Cg==
+- admissionReviewVersions:
+  - v1
+  clientConfig:
     service:
       name: webhook-service
       namespace: system
@@ -23,8 +24,10 @@ webhooks:
     - CREATE
     resources:
     - pods/eviction
-- clientConfig:
-    caBundle: Cg==
+  sideEffects: NoneOnDryRun
+- admissionReviewVersions:
+  - v1
+  clientConfig:
     service:
       name: webhook-service
       namespace: system
@@ -40,3 +43,4 @@ webhooks:
     - DELETE
     resources:
     - pods
+  sideEffects: NoneOnDryRun
