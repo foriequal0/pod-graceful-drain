@@ -1,0 +1,36 @@
+name: Release chart
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    name: Publish chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - id: package
+        name: Package charts
+        run: |
+          helm package charts/pod-graceful-drain
+          git add *.tgz
+          if git diff --quiet --cached; then
+            echo "There is no new package"
+            exit 1
+          fi
+      - name: Checkout gh-pages
+        run: |
+          git fetch origin gh-pages
+          git switch -c gh-pages FETCH_HEAD
+      - name: Update index
+        run: |
+          URL="https://${{ github.repository_owner }}.github.io/pod-graceful-drain"
+          helm repo index --url "$URL" . --merge index.yaml
+      - name: Commit
+        run: |
+          ADDED_FILE="$(git status --porcelain | grep '^A' | cut -c4- | sed 's/\.tgz$//')"
+
+          git add index.yaml
+
+          git config user.email pod-graceful-drain-bot@users.noreply.github.com
+          git config user.name pod-graceful-drain-bot
+          git commit -m "Updated chart index: ${ADDED_FILE}"
+      - run: git push origin gh-pages
