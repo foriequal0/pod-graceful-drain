@@ -67,12 +67,13 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	}
 
 	logger := v.logger.WithValues("eviction", types.NamespacedName{Namespace: eviction.Namespace, Name: eviction.Name})
+	logger.V(1).Info("Handle pod eviction")
 
 	handler, err := v.interceptor.Intercept(ctx, &req, &eviction)
 	if err != nil {
 		logger.Error(err, "errored while intercepting pod eviction")
 		if v.config.IgnoreError {
-			return admission.Allowed("ignore error during intercepting pod deletion")
+			return admission.Allowed("ignore error during intercepting pod eviction")
 		} else {
 			return admission.Errored(1, err)
 		}
@@ -80,6 +81,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 		return handler.HandleInterceptedAdmission()
 	}
 
+	logger.V(1).Info("Pod eviction is not intercepted")
 	return admission.Allowed("")
 }
 
