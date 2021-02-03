@@ -45,10 +45,7 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 		return nil, err
 	}
 
-	d.getLoggerFor(pod).Info("pod delayed remove spec",
-		"isolate", spec.isolate,
-		"asyncDelete", spec.asyncDelete,
-		"duration", spec.duration.Truncate(time.Second).String())
+	d.logSpec(pod, spec)
 
 	return d.translateSpec(ctx, pod, spec, now)
 }
@@ -57,6 +54,7 @@ type podDelayedRemoveSpec struct {
 	isolate     bool
 	asyncDelete bool
 	duration    time.Duration
+	reason      string
 }
 
 func (s podDelayedRemoveSpec) Equal(o podDelayedRemoveSpec) bool {
@@ -86,7 +84,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		return nil, nil
 	}
 
-	shouldDeny, err := d.shouldDenyAdmission(ctx, pod)
+	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to determine whether it should be denied")
 	}
@@ -96,26 +94,48 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 			isolate:     true,
 			asyncDelete: false,
 			duration:    d.config.AdmissionDelay,
+			reason:      reason,
 		}
 	} else {
 		removeSpec = podDelayedRemoveSpec{
 			isolate:     true,
 			asyncDelete: true,
 			duration:    d.config.DeleteAfter,
+			reason:      reason,
 		}
 	}
 	return &removeSpec, nil
 }
 
+func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) {
+	duration := spec.duration.Truncate(time.Second)
+	logger := d.getLoggerFor(pod).WithValues("duration", duration, "reason", spec.reason)
+	if spec.isolate {
+		if spec.asyncDelete {
+			logger.Info("isolate, deny admission, async delete")
+		} else {
+			logger.Info("isolate, allow admission after sleep")
+		}
+	} else {
+		if spec.asyncDelete {
+			logger.V(1).Info("reentry, deny admission")
+		} else {
+			logger.V(1).Info("reentry, allow admission after sleep")
+		}
+	}
+}
+
 func (d *PodGracefulDrain) translateSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec, now time.Time) (InterceptedAdmissionHandler, error) {
 	if spec.isolate {
 		deleteAt := now.Add(spec.duration)
+		d.getLoggerFor(pod).Info("isolating")
 		if err := Isolate(d.k8sClient, ctx, pod, deleteAt); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil, nil
 			}
 			return nil, errors.Wrap(err, "unable to isolate the pod")
 		}
+		d.getLoggerFor(pod).V(1).Info("isolated")
 	}
 
 	var interceptedHandler InterceptedAdmissionHandler
@@ -149,11 +169,11 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		return nil, nil
 	}
 
-	deny, err := d.shouldDenyAdmission(ctx, pod)
+	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
 	var spec podDelayedRemoveSpec
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether it should be denied")
-	} else if !deny {
+	} else if !shouldDeny {
 		if remainingTime > d.config.AdmissionDelay {
 			remainingTime = d.config.AdmissionDelay
 		}
@@ -162,11 +182,13 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 			isolate:     false,
 			asyncDelete: false,
 			duration:    remainingTime,
+			reason:      reason,
 		}
 	} else {
 		spec = podDelayedRemoveSpec{
 			isolate:     false,
 			asyncDelete: true,
+			reason:      reason,
 		}
 	}
 	return &spec, nil
@@ -194,29 +216,29 @@ func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod)
 
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
-func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, error) {
+func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, string, error) {
 	if d.config.NoDenyAdmission {
-		return false, nil
+		return false, "no-deny-admission config", nil
 	}
 
 	nodeName := pod.Spec.NodeName
 	var node corev1.Node
 	if err := d.k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
-		return false, errors.Wrapf(err, "cannot get node %v", nodeName)
+		return false, "", errors.Wrapf(err, "cannot get node %v", nodeName)
 	}
 
 	// Node is about to be drained.
 	// `kubectl drain` will fail and stop if it meets the first pod that cannot be deleted.
 	// It'll cordon a node before draining, so we detect it, and try not to deny the admission.
 	if node.Spec.Unschedulable {
-		return false, nil
+		return false, "node is Unschedulable", nil
 	}
 	for _, taint := range node.Spec.Taints {
 		if taint.Key == corev1.TaintNodeUnschedulable {
-			return false, nil
+			return false, "node has unschedulable taint", nil
 		}
 	}
-	return true, nil
+	return true, "default", nil
 }
 
 func (d *PodGracefulDrain) Start(ctx context.Context) error {
@@ -229,7 +251,7 @@ func (d *PodGracefulDrain) Start(ctx context.Context) error {
 
 	d.logger.Info("stopping pod-graceful-drain")
 	d.delayer.Stop(d.config.GetDrainDuration(), defaultPodGracefulDrainCleanupTimeout)
-	d.logger.Info("stopped pod-graceful-drain")
+	d.logger.V(1).Info("stopped pod-graceful-drain")
 	return nil
 }
 
@@ -280,13 +302,18 @@ func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod) DelayedTask 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=delete
 
 func (d *PodGracefulDrain) removePod(ctx context.Context, pod *corev1.Pod) error {
+	logger := d.getLoggerFor(pod)
+
+	logger.Info("disabling label")
 	if err := DisableWaitLabel(d.k8sClient, ctx, pod); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		return errors.Wrap(err, "cannot disable wait sentinel label")
 	}
+	logger.V(1).Info("disabled label")
 
+	logger.Info("deleting pod")
 	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
 		if err := d.k8sClient.Delete(ctx, pod, client.Preconditions{UID: &pod.UID}); err != nil {
 			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
@@ -299,13 +326,12 @@ func (d *PodGracefulDrain) removePod(ctx context.Context, pod *corev1.Pod) error
 		}
 		return true, nil
 	})
-
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
-
 		return errors.Wrap(err, "cannot delete the pod")
 	}
+	logger.V(1).Info("deleted pod")
 	return nil
 }

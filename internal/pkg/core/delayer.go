@@ -126,7 +126,7 @@ func (t *delayedTask) RunAfterAsync(duration time.Duration) {
 }
 
 func (t *delayedTask) run(ctx context.Context, duration time.Duration) error {
-	t.logger.V(1).Info("Wait timer for", "duration", duration)
+	t.logger.Info("Wait timer for", "duration", duration)
 
 	var interrupted bool
 	select {

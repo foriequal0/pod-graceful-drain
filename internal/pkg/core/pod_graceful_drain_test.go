@@ -199,6 +199,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: true,
 				duration:    deleteAfter,
+				reason:      "default",
 			},
 		}, {
 			name:     "bound pod should be delayed with no-deny",
@@ -209,6 +210,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: false,
 				duration:    admissionDelay,
+				reason:      "no-deny-admission config",
 			},
 		},
 		{
@@ -220,6 +222,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: true,
 				duration:    deleteAfter,
+				reason:      "default",
 			},
 		},
 		{
@@ -231,6 +234,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: false,
 				duration:    admissionDelay,
+				reason:      "no-deny-admission config",
 			},
 		},
 		{
@@ -248,6 +252,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			want: &podDelayedRemoveSpec{
 				isolate:     false,
 				asyncDelete: true,
+				reason:      "default",
 			},
 		},
 		{
@@ -259,6 +264,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     false,
 				asyncDelete: false,
 				duration:    admissionDelay,
+				reason:      "no-deny-admission config",
 			},
 		},
 		{
@@ -291,6 +297,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: false,
 				duration:    admissionDelay,
+				reason:      "node is Unschedulable",
 			},
 		},
 		{
@@ -302,6 +309,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				isolate:     true,
 				asyncDelete: false,
 				duration:    admissionDelay,
+				reason:      "node has unschedulable taint",
 			},
 		},
 	}
