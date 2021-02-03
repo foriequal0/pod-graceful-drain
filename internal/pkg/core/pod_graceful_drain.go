@@ -186,7 +186,7 @@ func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod)
 	return true, nil
 }
 
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, error) {
 	if d.config.NoDenyAdmission {

@@ -12,7 +12,7 @@ import (
 )
 
 // +kubebuilder:rbac:groups=elbv2.k8s.aws,resources=targetgroupbindings,verbs=list;watch
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;watch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 
 func getRegisteredServices(k8sClient client.Client, ctx context.Context, pod *corev1.Pod) ([]corev1.Service, error) {
 	tgbList := &elbv2api.TargetGroupBindingList{}
