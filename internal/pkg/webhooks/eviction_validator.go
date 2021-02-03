@@ -19,7 +19,7 @@ import (
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/interceptors"
 	"github.com/go-logr/logr"
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"net/http"
@@ -53,7 +53,7 @@ func (v *EvictionValidator) InjectDecoder(decoder *admission.Decoder) error {
 
 func (v *EvictionValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	switch req.Operation {
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		return v.handleCreate(ctx, req)
 	default:
 		return admission.Allowed("")
@@ -83,7 +83,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	return admission.Allowed("")
 }
 
-// +kubebuilder:webhook:verbs=create,path=/validate-policy-v1beta1-eviction,mutating=false,failurePolicy=ignore,groups=policy,resources=pods/eviction,versions=v1beta1,name=vpodseviction.pod-graceful-drain.io
+// +kubebuilder:webhook:admissionReviewVersions=v1,webhookVersions=v1,verbs=create,path=/validate-policy-v1beta1-eviction,mutating=false,failurePolicy=ignore,sideEffects=noneOnDryRun,groups=policy,resources=pods/eviction,versions=v1beta1,name=vpodseviction.pod-graceful-drain.io
 
 func (v *EvictionValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	mgr.GetWebhookServer().Register("/validate-policy-v1beta1-eviction", &admission.Webhook{
