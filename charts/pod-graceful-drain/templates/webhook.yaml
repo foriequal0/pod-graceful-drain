@@ -19,7 +19,6 @@ webhooks:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
         path: /validate-core-v1-pod
-
     failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
     name: vpodseviction.pod-graceful-drain.io
     rules:
@@ -28,6 +27,7 @@ webhooks:
         operations: [DELETE]
         resources: [pods]
     sideEffects: NoneOnDryRun
+    timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
   - clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
@@ -44,6 +44,7 @@ webhooks:
         operations: [CREATE]
         resources: [pods/eviction]
     sideEffects: NoneOnDryRun
+    timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
 {{- if not .Values.enableCertManager }}
 ---
 apiVersion: v1
