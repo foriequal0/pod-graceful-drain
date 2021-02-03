@@ -45,15 +45,17 @@ type AsyncWithDenyHandler struct {
 	duration    time.Duration
 }
 
-func NewAsyncWithDenyHandler(task DelayedTask, duration time.Duration) DelayedNoDenyHandler {
-	return DelayedNoDenyHandler{
+func NewAsyncWithDenyHandler(task DelayedTask, duration time.Duration) AsyncWithDenyHandler {
+	return AsyncWithDenyHandler{
 		delayedTask: task,
 		duration:    duration,
 	}
 }
 
 func (d AsyncWithDenyHandler) HandleInterceptedAdmission() admission.Response {
-	d.delayedTask.RunAfterAsync(d.duration)
+	if d.delayedTask != nil {
+		d.delayedTask.RunAfterAsync(d.duration)
+	}
 
 	return admission.Denied("Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start interceptor.")
 }
