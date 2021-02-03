@@ -1,0 +1,9 @@
+resources:
+- manager.yaml
+
+patchesStrategicMerge:
+- security_context_patch.yaml
+
+images:
+- name: manager
+  newName: ghcr.io/foriequal0/pod-graceful-drain

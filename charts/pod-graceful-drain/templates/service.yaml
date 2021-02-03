@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pod-graceful-drain.fullname" . }}-webhook-service
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: 443
+      targetPort: webhook-server
+  selector:
+    {{- include "pod-graceful-drain.selectorLabels" . | nindent 4 }}

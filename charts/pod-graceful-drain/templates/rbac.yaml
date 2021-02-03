@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pod-graceful-drain.fullname" . }}-role
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, patch, delete]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get]
+  - apiGroups: [elbv2.k8s.aws]
+    resources: [targetgroupbindings]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pod-graceful-drain.fullname" . }}-rolebinding
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pod-graceful-drain.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pod-graceful-drain.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

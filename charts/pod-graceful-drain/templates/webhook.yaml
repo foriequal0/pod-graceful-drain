@@ -1,0 +1,84 @@
+{{ $tls := fromYaml ( include "pod-graceful-drain.gen-certs" . ) }}
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  {{- if .Values.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.namePrefix" . }}-serving-cert
+  {{- end }}
+  name: {{ include "pod-graceful-drain.fullname" . }}-webhook
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+webhooks:
+  - clientConfig:
+      caBundle: {{ if not .Values.enableCertManager -}}{{ $tls.caCert }}{{- else -}}Cg=={{ end }}
+      service:
+        name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-core-v1-pod
+
+    failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
+    name: vpodseviction.pod-graceful-drain.io
+    rules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [DELETE]
+        resources: [pods]
+    sideEffects: NoneOnDryRun
+  - clientConfig:
+      caBundle: {{ if not .Values.enableCertManager -}}{{ $tls.caCert }}{{- else -}}Cg=={{ end }}
+      service:
+        name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-policy-v1beta1-eviction
+    failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
+    name: vpodseviction.pod-graceful-drain.io
+    rules:
+      - apiGroups: [policy]
+        apiVersions: [v1beta1]
+        operations: [CREATE]
+        resources: [pods/eviction]
+    sideEffects: NoneOnDryRun
+{{- if not .Values.enableCertManager }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ template "pod-graceful-drain.fullname" . }}-cert
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  ca.crt: {{ $tls.caCert }}
+  tls.crt: {{ $tls.clientCert }}
+  tls.key: {{ $tls.clientKey }}
+{{- else }}
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: {{ template "pod-graceful-drain.fullname" . }}-serving-cert
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+spec:
+  dnsNames:
+    - {{ template "pod-graceful-drain.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc
+    - {{ template "pod-graceful-drain.fullname" . }}-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ template "pod-graceful-drain.fullname" . }}-selfsigned-issuer
+  secretName: {{ template "pod-graceful-drain.fullname" . }}-cert
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: {{ template "pod-graceful-drain.fullname" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}
