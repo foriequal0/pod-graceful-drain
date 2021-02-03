@@ -125,7 +125,7 @@ func DisableWaitLabel(k8sClient client.Client, ctx context.Context, pod *corev1.
 	return patchPod(k8sClient, ctx, pod, patchCond, patchMutate)
 }
 
-// +kubebuilder:rbac:groups="",resources=pods,verbs=patch;get
+// +kubebuilder:rbac:groups="",resources=pods,verbs=patch;get;watch
 
 func patchPod(k8sClient client.Client, ctx context.Context, pod *corev1.Pod, desired func(*corev1.Pod) bool, mutate func(*corev1.Pod) error) error {
 	needUpdate := false

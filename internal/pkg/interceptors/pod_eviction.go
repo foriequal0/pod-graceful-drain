@@ -23,7 +23,7 @@ func NewPodEvictionInterceptor(drain *core.PodGracefulDrain, k8sClient client.Cl
 	}
 }
 
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;watch
 
 func (i *PodEvictionInterceptor) Intercept(ctx context.Context, req *admission.Request, eviction *v1beta1.Eviction) (core.InterceptedAdmissionHandler, error) {
 	if req.DryRun != nil && *req.DryRun == true {

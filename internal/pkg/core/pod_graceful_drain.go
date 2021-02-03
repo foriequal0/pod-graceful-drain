@@ -186,7 +186,7 @@ func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod)
 	return true, nil
 }
 
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;watch
 
 func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, error) {
 	if d.config.NoDenyAdmission {
@@ -227,7 +227,7 @@ func (d *PodGracefulDrain) Start(stop <-chan struct{}) error {
 	return nil
 }
 
-// +kubebuilder:rbac:groups="",resources=pods,verbs=list
+// +kubebuilder:rbac:groups="",resources=pods,verbs=list;watch
 
 func (d *PodGracefulDrain) cleanupPreviousRun(ctx context.Context) error {
 	podList := &corev1.PodList{}

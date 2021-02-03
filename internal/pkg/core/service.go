@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// +kubebuilder:rbac:groups=elbv2.k8s.aws,resources=targetgroupbindings,verbs=list
-// +kubebuilder:rbac:groups="",resources=services,verbs=get
+// +kubebuilder:rbac:groups=elbv2.k8s.aws,resources=targetgroupbindings,verbs=list;watch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;watch
 
 func getRegisteredServices(k8sClient client.Client, ctx context.Context, pod *corev1.Pod) ([]corev1.Service, error) {
 	tgbList := &elbv2api.TargetGroupBindingList{}

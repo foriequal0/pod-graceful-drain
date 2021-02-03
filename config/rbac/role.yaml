@@ -12,6 +12,7 @@ rules:
   - nodes
   verbs:
   - get
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -21,15 +22,18 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - ""
   resources:
   - services
   verbs:
   - get
+  - watch
 - apiGroups:
   - elbv2.k8s.aws
   resources:
   - targetgroupbindings
   verbs:
   - list
+  - watch
