@@ -61,3 +61,5 @@ ignoreError: true
 
 # Time period for the controller pod to do a graceful shutdown. It should be greater than deleteAfter and admissionDelay.
 terminationGracePeriodSeconds: 100
+# Timeout for the ValidatingAdmissionWebhook. It should be greater than admissionDelay.
+webhookTimeoutSeconds: 30
