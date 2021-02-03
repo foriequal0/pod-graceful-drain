@@ -1,12 +1,14 @@
 package core
 
 import (
+	"fmt"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"time"
 )
 
 type InterceptedAdmissionHandler interface {
 	HandleInterceptedAdmission() admission.Response
+	String() string
 }
 
 var _ InterceptedAdmissionHandler = &DryRunHandler{}
@@ -15,6 +17,10 @@ type DryRunHandler struct{}
 
 func (d DryRunHandler) HandleInterceptedAdmission() admission.Response {
 	return admission.Allowed("")
+}
+
+func (d DryRunHandler) String() string {
+	return fmt.Sprintf("dry-run")
 }
 
 var _ InterceptedAdmissionHandler = &DelayedNoDenyHandler{}
@@ -38,6 +44,10 @@ func (d DelayedNoDenyHandler) HandleInterceptedAdmission() admission.Response {
 	return admission.Allowed("")
 }
 
+func (d DelayedNoDenyHandler) String() string {
+	return fmt.Sprintf("admission allow after for %v", d.duration.Truncate(time.Second).String())
+}
+
 var _ InterceptedAdmissionHandler = &AsyncWithDenyHandler{}
 
 type AsyncWithDenyHandler struct {
@@ -58,4 +68,8 @@ func (d AsyncWithDenyHandler) HandleInterceptedAdmission() admission.Response {
 	}
 
 	return admission.Denied("Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start interceptor.")
+}
+
+func (d AsyncWithDenyHandler) String() string {
+	return fmt.Sprintf("admission deny, async delete after %v", d.duration.Truncate(time.Second).String())
 }

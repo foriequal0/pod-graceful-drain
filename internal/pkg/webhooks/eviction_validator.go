@@ -78,6 +78,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 			return admission.Errored(1, err)
 		}
 	} else if handler != nil {
+		logger.Info("intercepted handler", "handler", handler.String())
 		return handler.HandleInterceptedAdmission()
 	}
 
