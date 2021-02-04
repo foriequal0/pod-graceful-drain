@@ -1,13 +1,14 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"time"
 )
 
 type InterceptedAdmissionHandler interface {
-	HandleInterceptedAdmission() admission.Response
+	HandleInterceptedAdmission(ctx context.Context) admission.Response
 	String() string
 }
 
@@ -15,7 +16,7 @@ var _ InterceptedAdmissionHandler = &DryRunHandler{}
 
 type DryRunHandler struct{}
 
-func (d DryRunHandler) HandleInterceptedAdmission() admission.Response {
+func (d DryRunHandler) HandleInterceptedAdmission(_ context.Context) admission.Response {
 	return admission.Allowed("")
 }
 
@@ -37,8 +38,8 @@ func NewDelayedNoDenyHandler(task DelayedTask, duration time.Duration) DelayedNo
 	}
 }
 
-func (d DelayedNoDenyHandler) HandleInterceptedAdmission() admission.Response {
-	err := d.delayedTask.RunAfterWait(d.duration)
+func (d DelayedNoDenyHandler) HandleInterceptedAdmission(ctx context.Context) admission.Response {
+	err := d.delayedTask.RunAfterWait(ctx, d.duration)
 	_ = err
 
 	return admission.Allowed("")
@@ -62,7 +63,7 @@ func NewAsyncWithDenyHandler(task DelayedTask, duration time.Duration) AsyncWith
 	}
 }
 
-func (d AsyncWithDenyHandler) HandleInterceptedAdmission() admission.Response {
+func (d AsyncWithDenyHandler) HandleInterceptedAdmission(_ context.Context) admission.Response {
 	if d.delayedTask != nil {
 		d.delayedTask.RunAfterAsync(d.duration)
 	}

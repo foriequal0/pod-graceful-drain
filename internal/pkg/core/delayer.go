@@ -76,7 +76,7 @@ func (d *delayer) Stop(drain time.Duration, cleanup time.Duration) {
 
 type DelayedTask interface {
 	WithLoggerValues(keysAndValues ...interface{}) DelayedTask
-	RunAfterWait(duration time.Duration) error
+	RunAfterWait(ctx context.Context, duration time.Duration) error
 	RunAfterAsync(duration time.Duration)
 }
 
@@ -100,14 +100,21 @@ func (t *delayedTask) WithLoggerValues(keysAndValues ...interface{}) DelayedTask
 	}
 }
 
-func (t *delayedTask) RunAfterWait(duration time.Duration) error {
+func (t *delayedTask) RunAfterWait(ctx context.Context, duration time.Duration) error {
 	t.delayer.tasksWaitGroup.Add(1)
 	defer t.delayer.tasksWaitGroup.Done()
 
-	ctx, cancel := context.WithCancel(t.delayer.cleanupContext)
+	innerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	go func() {
+		select {
+		case <-innerCtx.Done():
+		case <-t.delayer.cleanupContext.Done():
+			cancel()
+		}
+	}()
 
-	return t.run(ctx, duration)
+	return t.run(innerCtx, duration)
 }
 
 func (t *delayedTask) RunAfterAsync(duration time.Duration) {
@@ -130,6 +137,8 @@ func (t *delayedTask) run(ctx context.Context, duration time.Duration) error {
 
 	var interrupted bool
 	select {
+	case <-ctx.Done():
+		interrupted = true
 	case <-t.delayer.interrupt:
 		interrupted = true
 	case <-time.After(duration):
