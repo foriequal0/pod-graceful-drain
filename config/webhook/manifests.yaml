@@ -12,14 +12,14 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-policy-v1beta1-eviction
+      path: /validate-core-v1-pod-eviction
   failurePolicy: Ignore
   name: vpodseviction.pod-graceful-drain.io
   rules:
   - apiGroups:
-    - policy
+    - ""
     apiVersions:
-    - v1beta1
+    - v1
     operations:
     - CREATE
     resources:
