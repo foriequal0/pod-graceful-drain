@@ -61,6 +61,9 @@ func (v *PodValidator) Handle(ctx context.Context, req admission.Request) admiss
 }
 
 func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) admission.Response {
+	ctx, cancel := WithTimeout(ctx)
+	defer cancel()
+
 	pod := v1.Pod{}
 	if err := v.decoder.DecodeRaw(req.OldObject, &pod); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
@@ -90,7 +93,8 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 
 func (v *PodValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &admission.Webhook{
-		Handler: v,
+		Handler:         v,
+		WithContextFunc: WithTimeoutContext,
 	})
 	return nil
 }
