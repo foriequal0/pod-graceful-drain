@@ -148,7 +148,7 @@ func (d *PodGracefulDrain) translateSpec(ctx context.Context, pod *corev1.Pod, s
 		}
 		interceptedHandler = NewAsyncWithDenyHandler(task, spec.duration)
 	} else {
-		interceptedHandler = NewDelayedNoDenyHandler(d.delayer.NewTask(nil), spec.duration)
+		interceptedHandler = NewDelayedNoDenyHandler(d.getSleepTask(pod), spec.duration)
 	}
 	return interceptedHandler, nil
 }
@@ -292,48 +292,52 @@ func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
 	return d.logger.WithValues("pod", podName.String())
 }
 
+// +kubebuilder:rbac:groups="",resources=pods,verbs=delete
+
 func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod) DelayedTask {
 	return d.delayer.NewTask(func(ctx context.Context, _ bool) error {
-		return d.removePod(ctx, pod)
+		logger := GetTaskScopedLogger(ctx)
+
+		logger.Info("disabling label")
+		if err := DisableWaitLabel(d.k8sClient, ctx, pod); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return errors.Wrap(err, "cannot disable wait sentinel label")
+		}
+		logger.V(1).Info("disabled label")
+
+		logger.Info("deleting pod")
+		err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
+			if err := d.k8sClient.Delete(ctx, pod, client.Preconditions{UID: &pod.UID}); err != nil {
+				if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+					// The pod is already deleted. Okay to ignore
+					return true, nil
+				}
+				// Intercept might deny the deletion as too early until DisableWaitLabel patch is propagated.
+				// TODO: error is actually admission denial
+				return false, nil
+			}
+			return true, nil
+		})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			return errors.Wrap(err, "cannot delete the pod")
+		}
+		logger.V(1).Info("deleted pod")
+		return nil
 	}).WithLoggerValues("pod", types.NamespacedName{
 		Namespace: pod.Namespace,
 		Name:      pod.Name,
 	}.String())
 }
 
-// +kubebuilder:rbac:groups="",resources=pods,verbs=delete
-
-func (d *PodGracefulDrain) removePod(ctx context.Context, pod *corev1.Pod) error {
-	logger := d.getLoggerFor(pod)
-
-	logger.Info("disabling label")
-	if err := DisableWaitLabel(d.k8sClient, ctx, pod); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return errors.Wrap(err, "cannot disable wait sentinel label")
-	}
-	logger.V(1).Info("disabled label")
-
-	logger.Info("deleting pod")
-	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
-		if err := d.k8sClient.Delete(ctx, pod, client.Preconditions{UID: &pod.UID}); err != nil {
-			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
-				// The pod is already deleted. Okay to ignore
-				return true, nil
-			}
-			// Intercept might deny the deletion as too early until DisableWaitLabel patch is propagated.
-			// TODO: error is actually admission denial
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return errors.Wrap(err, "cannot delete the pod")
-	}
-	logger.V(1).Info("deleted pod")
-	return nil
+func (d *PodGracefulDrain) getSleepTask(pod *corev1.Pod) DelayedTask {
+	return d.delayer.NewTask(nil).
+		WithLoggerValues("pod", types.NamespacedName{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		}.String())
 }
