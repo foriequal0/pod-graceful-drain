@@ -86,10 +86,10 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	return admission.Allowed("")
 }
 
-// +kubebuilder:webhook:admissionReviewVersions=v1,webhookVersions=v1,verbs=create,path=/validate-policy-v1beta1-eviction,mutating=false,failurePolicy=ignore,sideEffects=noneOnDryRun,groups=policy,resources=pods/eviction,versions=v1beta1,name=vpodseviction.pod-graceful-drain.io
+// +kubebuilder:webhook:admissionReviewVersions=v1,webhookVersions=v1,verbs=create,path=/validate-core-v1-pod-eviction,mutating=false,failurePolicy=ignore,sideEffects=noneOnDryRun,groups="",resources=pods/eviction,versions=v1,name=vpodseviction.pod-graceful-drain.io
 
 func (v *EvictionValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	mgr.GetWebhookServer().Register("/validate-policy-v1beta1-eviction", &admission.Webhook{
+	mgr.GetWebhookServer().Register("/validate-core-v1-pod-eviction", &admission.Webhook{
 		Handler: v,
 	})
 	return nil
