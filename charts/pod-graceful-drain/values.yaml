@@ -54,12 +54,10 @@ logLevel:
 deleteAfter:
 # Delay a pod deletion by only delaying an admission without denying it (default: false)
 noDenyAdmission:
-# Amount of time that an admission takes (default: 25s)
-admissionDelay:
 # Allow pod deletion even if there were errors during the pod deletion interception (default: true)
 ignoreError: true
 
-# Time period for the controller pod to do a graceful shutdown. It should be greater than deleteAfter and admissionDelay.
+# Time period for the controller pod to do a graceful shutdown. It should be greater than deleteAfter
 terminationGracePeriodSeconds: 100
-# Timeout for the ValidatingAdmissionWebhook. It should be greater than admissionDelay.
+# Timeout for the ValidatingAdmissionWebhook. It should be long enough since admission delay cap is determined by this value
 webhookTimeoutSeconds: 30

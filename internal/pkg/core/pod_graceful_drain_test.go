@@ -15,20 +15,18 @@ import (
 	"time"
 )
 
-const (
-	deleteAfter    = 90 * time.Second
-	admissionDelay = 25 * time.Second
+var (
+	deleteAfter    = 60 * time.Second
+	contextTimeout = 10 * time.Second
 )
 
 var (
 	defaultConfig = PodGracefulDrainConfig{
 		DeleteAfter:     deleteAfter,
 		NoDenyAdmission: false,
-		AdmissionDelay:  admissionDelay,
 	}
 	noDenyConfig = PodGracefulDrainConfig{
 		NoDenyAdmission: true,
-		AdmissionDelay:  admissionDelay,
 	}
 )
 
@@ -188,6 +186,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		existing []runtime.Object
 		config   []PodGracefulDrainConfig
 		given    *corev1.Pod
+		timeout  *time.Duration
 		want     *podDelayedRemoveSpec
 	}{
 		{
@@ -205,11 +204,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			name:     "bound pod should be delayed with no-deny",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
+			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
 				asyncDelete: false,
-				duration:    admissionDelay,
+				duration:    contextTimeout - admissionDelayOverhead,
 				reason:      "no-deny-admission config",
 			},
 		},
@@ -229,11 +229,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			name:     "pod with readiness gate should be delayed with no-deny",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
+			timeout:  &contextTimeout,
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
 				asyncDelete: false,
-				duration:    admissionDelay,
+				duration:    contextTimeout - admissionDelayOverhead,
 				reason:      "no-deny-admission config",
 			},
 		},
@@ -259,11 +260,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			name:     "isolated pod should be delayed, again with no-deny",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
+			timeout:  &contextTimeout,
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
 				isolate:     false,
 				asyncDelete: false,
-				duration:    admissionDelay,
+				duration:    contextTimeout - admissionDelayOverhead,
 				reason:      "no-deny-admission config",
 			},
 		},
@@ -292,11 +294,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			name:     "pod in unschedulable node is delayed, but without async delete",
 			existing: []runtime.Object{&unschedulableNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
+			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
 				asyncDelete: false,
-				duration:    admissionDelay,
+				duration:    contextTimeout - admissionDelayOverhead,
 				reason:      "node is Unschedulable",
 			},
 		},
@@ -304,11 +307,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			name:     "pod in tainted node is delayed, but without async delete",
 			existing: []runtime.Object{&taintedNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
+			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
 				asyncDelete: false,
-				duration:    admissionDelay,
+				duration:    contextTimeout - admissionDelayOverhead,
 				reason:      "node has unschedulable taint",
 			},
 		},
@@ -318,6 +322,11 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		for i, config := range tt.config {
 			t.Run(fmt.Sprintf("%v - config %v", tt.name, i), func(t *testing.T) {
 				ctx := context.Background()
+				if tt.timeout != nil {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithDeadline(ctx, now.Add(*tt.timeout))
+					defer cancel()
+				}
 				k8sSchema := runtime.NewScheme()
 				assert.NilError(t, clientgoscheme.AddToScheme(k8sSchema))
 				assert.NilError(t, elbv2.AddToScheme(k8sSchema))

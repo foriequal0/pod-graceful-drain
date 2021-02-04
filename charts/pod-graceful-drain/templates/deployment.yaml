@@ -38,9 +38,6 @@ spec:
             {{- if .Values.noDenyAdmission }}
             - --no-deny-admission
             {{- end }}
-            {{- with .Values.admissionDelay }}
-            - --admission-delay={{ . }}
-            {{- end }}
             {{- with .Values.logLevel }}
             - --log-level={{ . }}
             {{- end }}

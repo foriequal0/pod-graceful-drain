@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	fallbackAdmissionDelayTimeout         = 30 * time.Second
+	admissionDelayOverhead                = 2 * time.Second
 	defaultPodGracefulDrainCleanupTimeout = 10 * time.Second
 )
 
@@ -93,7 +95,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		removeSpec = podDelayedRemoveSpec{
 			isolate:     true,
 			asyncDelete: false,
-			duration:    d.config.AdmissionDelay,
+			duration:    getAdmissionDelayTimeout(ctx, now),
 			reason:      reason,
 		}
 	} else {
@@ -105,6 +107,17 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		}
 	}
 	return &removeSpec, nil
+}
+
+func getAdmissionDelayTimeout(ctx context.Context, now time.Time) time.Duration {
+	timeout := fallbackAdmissionDelayTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = deadline.Sub(now) - admissionDelayOverhead
+		if timeout < 0 {
+			timeout = time.Duration(0)
+		}
+	}
+	return timeout
 }
 
 func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) {
@@ -176,8 +189,9 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether it should be denied")
 	} else if !shouldDeny {
-		if remainingTime > d.config.AdmissionDelay {
-			remainingTime = d.config.AdmissionDelay
+		timeout := getAdmissionDelayTimeout(ctx, now)
+		if remainingTime > timeout {
+			remainingTime = timeout
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
 		spec = podDelayedRemoveSpec{
@@ -252,7 +266,13 @@ func (d *PodGracefulDrain) Start(ctx context.Context) error {
 	<-ctx.Done()
 
 	d.logger.Info("stopping pod-graceful-drain")
-	d.delayer.Stop(d.config.GetDrainDuration(), defaultPodGracefulDrainCleanupTimeout)
+
+	drainTimeout := fallbackAdmissionDelayTimeout
+	if drainTimeout < d.config.DeleteAfter {
+		drainTimeout = d.config.DeleteAfter
+	}
+
+	d.delayer.Stop(drainTimeout, defaultPodGracefulDrainCleanupTimeout)
 	d.logger.V(1).Info("stopped pod-graceful-drain")
 	return nil
 }
