@@ -82,7 +82,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 		}
 	} else if handler != nil {
 		logger.Info("intercepted handler", "handler", handler.String())
-		return handler.HandleInterceptedAdmission()
+		return handler.HandleInterceptedAdmission(ctx)
 	}
 
 	logger.V(1).Info("Pod deletion is not intercepted")

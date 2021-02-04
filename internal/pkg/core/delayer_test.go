@@ -15,14 +15,14 @@ func newDelayer() core.Delayer {
 }
 
 type taskProbe struct {
-	cancelled   bool
+	contextErr  error
 	interrupted bool
 	time        time.Time
 }
 
 func newTaskProbe(ctx context.Context, interrupted bool) taskProbe {
 	return taskProbe{
-		cancelled:   ctx.Err() == context.Canceled,
+		contextErr:  ctx.Err(),
 		interrupted: interrupted,
 		time:        time.Now(),
 	}
@@ -44,10 +44,34 @@ func TestDelayedTask_RunAfterWait_ShouldBlock(t *testing.T) {
 		return nil
 	})
 
-	_ = task.RunAfterWait(duration)
+	_ = task.RunAfterWait(context.TODO(), duration)
 
 	select {
 	case <-probe:
+	default:
+		assert.Assert(t, false, "Task should've ran when RunAfterWait returned")
+	}
+}
+
+func TestDelayedTask_RunAfterWait_ShouldCancelledAfterTimeout(t *testing.T) {
+	delayer := newDelayer()
+	defer delayer.Stop(duration, duration)
+	probe := make(chan taskProbe, 1)
+	task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+		probe <- newTaskProbe(ctx, interrupted)
+		return nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.TODO(), shortDuration)
+	defer cancel()
+	start := time.Now()
+	_ = task.RunAfterWait(ctx, duration)
+
+	select {
+	case probeResult := <-probe:
+		assert.Equal(t, probeResult.interrupted, true, "Task should be interrupted")
+		assert.Equal(t, probeResult.contextErr, context.DeadlineExceeded, "Task should be timed out")
+		assert.Equal(t, start.Sub(probeResult.time) < duration, true, "Task should be started earlier")
 	default:
 		assert.Assert(t, false, "Task should've ran when RunAfterWait returned")
 	}
@@ -67,7 +91,7 @@ func TestDelayedTask_RunAfterWait_ShouldPassError(t *testing.T) {
 				return err1
 			})
 
-			err2 := task.RunAfterWait(time.Duration(0))
+			err2 := task.RunAfterWait(context.TODO(), time.Duration(0))
 
 			assert.Equal(t, err1, err2, "RunAfterWait should return what task have returned")
 		})
@@ -101,7 +125,7 @@ func TestDelayedTask_NoInterruptDrain_WhenDelayIsShortEnough(t *testing.T) {
 		name   string
 		runner func(task core.DelayedTask, delay time.Duration)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(delay) }},
+		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.TODO(), delay) }},
 		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
 	}
 
@@ -148,7 +172,7 @@ func TestDelayedTask_InterruptedDrain_WhenDelayIsTooLong(t *testing.T) {
 		name   string
 		runner func(task core.DelayedTask, delay time.Duration)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(delay) }},
+		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.Background(), delay) }},
 		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
 	}
 	for _, tt := range tests {
@@ -183,8 +207,8 @@ func TestDelayedTask_InterruptedDrain_WhenDelayIsTooLong(t *testing.T) {
 			stop := stopperEnd.Sub(stopperStart)
 
 			assert.Equal(t, interrupted.interrupted, true, "Task should be interrupted")
-			assert.Equal(t, interrupted.cancelled, false, "Task should not be cancelled yet")
-			assert.Equal(t, cancelled.cancelled, true, "Task should be cancelled")
+			assert.NilError(t, interrupted.contextErr, "Task should not be cancelled yet")
+			assert.Equal(t, cancelled.contextErr, context.Canceled, "Task should be cancelled")
 
 			assert.Assert(t, delay < givenDelay, "Task should be started earlier")
 			assert.Assert(t, similar(drain, givenDrain, 0.1), "delayer should allow tasks delayed up to drain period")
@@ -203,7 +227,7 @@ func TestDelayedTask_EmptyStop(t *testing.T) {
 		name   string
 		runner func(task core.DelayedTask, delay time.Duration)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(delay) }},
+		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.Background(), delay) }},
 		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
 	}
 
