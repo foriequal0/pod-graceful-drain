@@ -21,7 +21,7 @@ webhooks:
         namespace: {{ .Release.Namespace }}
         path: /validate-core-v1-pod
     failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
-    name: vpodseviction.pod-graceful-drain.io
+    name: vpod.pod-graceful-drain.io
     rules:
       - apiGroups: [""]
         apiVersions: [v1]
