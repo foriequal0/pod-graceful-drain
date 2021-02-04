@@ -29,7 +29,6 @@ spec:
         args:
         - --delete-after=90s
         - --no-deny-admission=false
-        - --admission-delay=25s
         - --ignore-error
         resources:
           limits:
