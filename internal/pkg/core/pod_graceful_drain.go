@@ -108,21 +108,23 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 }
 
 func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) {
-	duration := spec.duration.Truncate(time.Second)
-	logger := d.getLoggerFor(pod).WithValues("duration", duration, "reason", spec.reason)
+	var msg string
 	if spec.isolate {
 		if spec.asyncDelete {
-			logger.Info("isolate, deny admission, async delete")
+			msg = "isolate, deny admission, async delete"
 		} else {
-			logger.Info("isolate, allow admission after sleep")
+			msg = "isolate, allow admission after sleep"
 		}
 	} else {
 		if spec.asyncDelete {
-			logger.V(1).Info("reentry, deny admission")
+			msg = "reentry, deny admission"
 		} else {
-			logger.V(1).Info("reentry, allow admission after sleep")
+			msg = "reentry, allow admission after sleep"
 		}
 	}
+
+	d.getLoggerFor(pod).Info("delayed pod remove spec",
+		"detail", msg, "duration", spec.duration.Truncate(time.Second), "reason", spec.reason)
 }
 
 func (d *PodGracefulDrain) translateSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec, now time.Time) (InterceptedAdmissionHandler, error) {
