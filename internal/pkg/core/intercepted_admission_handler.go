@@ -67,7 +67,7 @@ func (d AsyncWithDenyHandler) HandleInterceptedAdmission() admission.Response {
 		d.delayedTask.RunAfterAsync(d.duration)
 	}
 
-	return admission.Denied("Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start interceptor.")
+	return admission.Denied("Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start.")
 }
 
 func (d AsyncWithDenyHandler) String() string {
