@@ -62,7 +62,7 @@ func (v *EvictionValidator) Handle(ctx context.Context, req admission.Request) a
 
 func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Request) admission.Response {
 	eviction := v1beta1.Eviction{}
-	if err := v.decoder.DecodeRaw(req.OldObject, &eviction); err != nil {
+	if err := v.decoder.DecodeRaw(req.Object, &eviction); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 

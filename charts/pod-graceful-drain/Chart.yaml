@@ -4,4 +4,4 @@ description: |
   You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
 type: application
 version: 0.0.4
-appVersion: "v0.0.4"
+appVersion: "v0.0.5"
