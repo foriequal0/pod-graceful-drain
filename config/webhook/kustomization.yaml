@@ -7,3 +7,4 @@ configurations:
 
 patchesStrategicMerge:
 - webhook_timeout_patch.yaml
+- webhook_namespace_selector_patch.yaml

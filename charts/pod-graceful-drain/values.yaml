@@ -61,3 +61,5 @@ ignoreError: true
 terminationGracePeriodSeconds: 100
 # Timeout for the ValidatingAdmissionWebhook. It should be long enough since admission delay cap is determined by this value
 webhookTimeoutSeconds: 30
+# webhook's namespaceSelector to limit where the
+namespaceSelector: {}
