@@ -1,3 +1,5 @@
+![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/foriequal0/pod-graceful-drain) ![Helm chart version](https://img.shields.io/badge/dynamic/yaml?label=Helm%20chart&query=%24.entries[%22pod-graceful-drain%22][0].version&url=https%3A%2F%2Fforiequal0.github.io%2Fpod-graceful-drain%2Findex.yaml)
+
 # Pod Graceful Drain
 
 You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
