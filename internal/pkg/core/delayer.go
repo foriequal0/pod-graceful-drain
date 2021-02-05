@@ -19,22 +19,18 @@ type delayer struct {
 	logger  logr.Logger
 	counter int64
 
-	interrupt      chan struct{}
 	tasksWaitGroup *sync.WaitGroup
-	cleanupContext context.Context
-	cleanupCancel  context.CancelFunc
+	interrupt      chan struct{}
+	cleanup        chan struct{}
 }
 
 func NewDelayer(logger logr.Logger) Delayer {
-	cleanupContext, cleanupCancel := context.WithCancel(context.Background())
-
 	return &delayer{
 		logger: logger.WithName("delayer"),
 
-		interrupt:      make(chan struct{}),
 		tasksWaitGroup: &sync.WaitGroup{},
-		cleanupContext: cleanupContext,
-		cleanupCancel:  cleanupCancel,
+		interrupt:      make(chan struct{}),
+		cleanup:        make(chan struct{}),
 	}
 }
 
@@ -52,10 +48,10 @@ func (d *delayer) NewTask(task func(context.Context, bool) error) DelayedTask {
 func (d *delayer) Stop(drain time.Duration, cleanup time.Duration) {
 	d.logger.Info("Stopping delayer")
 
-	stopped := make(chan struct{}, 1)
+	stopped := make(chan struct{})
 	go func() {
 		d.tasksWaitGroup.Wait()
-		stopped <- struct{}{}
+		close(stopped)
 	}()
 
 	select {
@@ -70,7 +66,7 @@ func (d *delayer) Stop(drain time.Duration, cleanup time.Duration) {
 		case <-time.After(cleanup):
 		}
 	}
-	d.cleanupCancel()
+	close(d.cleanup)
 	d.logger.Info("Stopped delayer")
 }
 
@@ -109,7 +105,7 @@ func (t *delayedTask) RunAfterWait(ctx context.Context, duration time.Duration) 
 	go func() {
 		select {
 		case <-innerCtx.Done():
-		case <-t.delayer.cleanupContext.Done():
+		case <-t.delayer.cleanup:
 			cancel()
 		}
 	}()
@@ -119,7 +115,14 @@ func (t *delayedTask) RunAfterWait(ctx context.Context, duration time.Duration) 
 
 func (t *delayedTask) RunAfterAsync(duration time.Duration) {
 	t.delayer.tasksWaitGroup.Add(1)
-	ctx, cancel := context.WithCancel(t.delayer.cleanupContext)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-t.delayer.cleanup:
+			cancel()
+		}
+	}()
 
 	go func() {
 		defer t.delayer.tasksWaitGroup.Done()
