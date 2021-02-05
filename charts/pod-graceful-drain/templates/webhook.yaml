@@ -29,6 +29,10 @@ webhooks:
         resources: [pods]
     sideEffects: NoneOnDryRun
     timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
+    {{- with .Values.namespaceSelector }}
+    namespaceSelector:
+      {{- . | nindent 6 }}
+    {{- end }}
   - admissionReviewVersions: [v1]
     clientConfig:
       {{- if not .Values.enableCertManager }}
@@ -47,6 +51,10 @@ webhooks:
         resources: [pods/eviction]
     sideEffects: NoneOnDryRun
     timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
+    {{- with .Values.namespaceSelector }}
+    namespaceSelector:
+      {{- . | nindent 6 }}
+    {{- end }}
 {{- if not .Values.enableCertManager }}
 ---
 apiVersion: v1
