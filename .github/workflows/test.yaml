@@ -15,13 +15,29 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: ^1.15
-      - name: Install helm kubeval
-        run: helm plugin install https://github.com/instrumenta/helm-kubeval
       - run: make test manifests docker-build
       - name: Manifests are up to date
         run: git diff --exit-code -- config/
-      - run: helm lint charts/pod-graceful-drain --strict
-      - run: helm kubeval charts/pod-graceful-drain
       - uses: codecov/codecov-action@v1
         with:
           file: ./cover.out
+  helm:
+    name: Helm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install helm kubeval
+        run: helm plugin install https://github.com/instrumenta/helm-kubeval
+      - run: helm lint charts/pod-graceful-drain --strict
+      - run: helm kubeval charts/pod-graceful-drain
+      - uses: helm/kind-action@v1.1.0
+      - run: helm install pod-graceful-drain charts/pod-graceful-drain --set image.tag=latest
+  kustomize:
+    name: Kustomize
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: helm/kind-action@v1.1.0
+      - name: Install certmanager
+        run: kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.yaml
+      - run: make deploy
