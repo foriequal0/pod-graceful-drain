@@ -313,7 +313,7 @@ func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
 
 func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod) DelayedTask {
 	return d.delayer.NewTask(func(ctx context.Context, _ bool) error {
-		logger := GetTaskScopedLogger(ctx)
+		logger := logr.FromContextOrDiscard(ctx)
 
 		logger.Info("disabling label")
 		if err := DisableWaitLabel(d.k8sClient, ctx, pod); err != nil {
