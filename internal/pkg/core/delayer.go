@@ -151,7 +151,7 @@ func (t *delayedTask) run(ctx context.Context, duration time.Duration) error {
 	t.logger.V(1).Info("Start delayed task", "interrupted", interrupted)
 
 	if t.task != nil {
-		newCtx := context.WithValue(ctx, delayedTaskScopeLoggerKey, t.logger)
+		newCtx := logr.NewContext(ctx, t.logger)
 
 		if err := t.task(newCtx, interrupted); err != nil {
 			t.logger.Error(err, "Delayed task errored")
@@ -159,12 +159,4 @@ func (t *delayedTask) run(ctx context.Context, duration time.Duration) error {
 		}
 	}
 	return nil
-}
-
-const (
-	delayedTaskScopeLoggerKey = "DelayedTaskScopeLoggerKey"
-)
-
-func GetTaskScopedLogger(ctx context.Context) logr.Logger {
-	return ctx.Value(delayedTaskScopeLoggerKey).(logr.Logger)
 }
