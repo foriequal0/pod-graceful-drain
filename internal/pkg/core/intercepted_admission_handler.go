@@ -12,9 +12,9 @@ type InterceptedAdmissionHandler interface {
 	String() string
 }
 
-var _ InterceptedAdmissionHandler = &DryRunHandler{}
-
 type DryRunHandler struct{}
+
+var _ InterceptedAdmissionHandler = &DryRunHandler{}
 
 func (d DryRunHandler) HandleInterceptedAdmission(_ context.Context) admission.Response {
 	return admission.Allowed("")
@@ -24,12 +24,12 @@ func (d DryRunHandler) String() string {
 	return fmt.Sprintf("dry-run")
 }
 
-var _ InterceptedAdmissionHandler = &DelayedNoDenyHandler{}
-
 type DelayedNoDenyHandler struct {
 	delayedTask DelayedTask
 	duration    time.Duration
 }
+
+var _ InterceptedAdmissionHandler = &DelayedNoDenyHandler{}
 
 func NewDelayedNoDenyHandler(task DelayedTask, duration time.Duration) DelayedNoDenyHandler {
 	return DelayedNoDenyHandler{
@@ -49,12 +49,12 @@ func (d DelayedNoDenyHandler) String() string {
 	return fmt.Sprintf("admission allow after for %v", d.duration.Truncate(time.Second).String())
 }
 
-var _ InterceptedAdmissionHandler = &AsyncWithDenyHandler{}
-
 type AsyncWithDenyHandler struct {
 	delayedTask DelayedTask
 	duration    time.Duration
 }
+
+var _ InterceptedAdmissionHandler = &AsyncWithDenyHandler{}
 
 func NewAsyncWithDenyHandler(task DelayedTask, duration time.Duration) AsyncWithDenyHandler {
 	return AsyncWithDenyHandler{

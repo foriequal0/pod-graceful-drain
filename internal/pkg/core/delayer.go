@@ -13,8 +13,6 @@ type Delayer interface {
 	Stop(drain time.Duration, cleanup time.Duration)
 }
 
-var _ Delayer = &delayer{}
-
 type delayer struct {
 	logger  logr.Logger
 	counter int64
@@ -23,6 +21,8 @@ type delayer struct {
 	interrupt      chan struct{}
 	cleanup        chan struct{}
 }
+
+var _ Delayer = &delayer{}
 
 func NewDelayer(logger logr.Logger) Delayer {
 	return &delayer{
@@ -70,13 +70,13 @@ func (d *delayer) Stop(drain time.Duration, cleanup time.Duration) {
 	d.logger.Info("Stopped delayer")
 }
 
+type DelayedTaskId int64
+
 type DelayedTask interface {
 	WithLoggerValues(keysAndValues ...interface{}) DelayedTask
 	RunAfterWait(ctx context.Context, duration time.Duration) error
 	RunAfterAsync(duration time.Duration)
 }
-
-var _ DelayedTask = &delayedTask{}
 
 type delayedTask struct {
 	delayer *delayer
@@ -85,7 +85,7 @@ type delayedTask struct {
 	task    func(context.Context, bool) error
 }
 
-type DelayedTaskId int64
+var _ DelayedTask = &delayedTask{}
 
 func (t *delayedTask) WithLoggerValues(keysAndValues ...interface{}) DelayedTask {
 	return &delayedTask{
