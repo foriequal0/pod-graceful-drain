@@ -27,9 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var _ admission.DecoderInjector = &PodValidator{}
-var _ admission.Handler = &PodValidator{}
-
 type PodValidator struct {
 	logger      logr.Logger
 	interceptor interceptors.PodDeletionInterceptor
@@ -37,6 +34,9 @@ type PodValidator struct {
 
 	decoder *admission.Decoder
 }
+
+var _ admission.DecoderInjector = &PodValidator{}
+var _ admission.Handler = &PodValidator{}
 
 func NewPodValidator(interceptor interceptors.PodDeletionInterceptor, logger logr.Logger, config *core.PodGracefulDrainConfig) PodValidator {
 	return PodValidator{

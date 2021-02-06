@@ -22,14 +22,14 @@ const (
 	defaultPodGracefulDrainCleanupTimeout = 10 * time.Second
 )
 
-var _ manager.Runnable = &PodGracefulDrain{}
-
 type PodGracefulDrain struct {
 	k8sClient client.Client
 	logger    logr.Logger
 	config    *PodGracefulDrainConfig
 	delayer   Delayer
 }
+
+var _ manager.Runnable = &PodGracefulDrain{}
 
 func NewPodGracefulDrain(k8sClient client.Client, logger logr.Logger, config *PodGracefulDrainConfig) PodGracefulDrain {
 	return PodGracefulDrain{
