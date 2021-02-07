@@ -180,10 +180,6 @@ func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spe
 // * Users and controllers manually tries to delete the pod before deleteAt.
 //   => User can see the admission report message. Controller should getPodDelayedRemoveSpec admission failures.
 func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *podDelayedRemoveSpec, err error) {
-	if !info.Wait {
-		return nil, nil
-	}
-
 	remainingTime := info.GetRemainingTime(now)
 	if remainingTime == time.Duration(0) {
 		return nil, nil
