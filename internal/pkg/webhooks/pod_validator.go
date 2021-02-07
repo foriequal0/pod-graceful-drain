@@ -72,7 +72,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 	logger := v.logger.WithValues("pod", types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name})
 	logger.V(1).Info("Handle pod deletion")
 
-	handler, err := v.interceptor.Intercept(ctx, &req, &pod)
+	intercepted, err := v.interceptor.Intercept(ctx, &req, &pod)
 	if err != nil {
 		logger.Error(err, "errored while intercepting pod deletion")
 		if v.config.IgnoreError {
@@ -80,9 +80,9 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 		} else {
 			return admission.Errored(1, err)
 		}
-	} else if handler != nil {
-		logger.Info("intercepted handler", "handler", handler.String())
-		return handler.HandleInterceptedAdmission(ctx)
+	} else if intercepted != nil {
+		logger.Info("intercepted", "allow", intercepted.Allow, "reason", intercepted.Reason)
+		return intercepted.GetAdmissionResponse()
 	}
 
 	logger.V(1).Info("Pod deletion is not intercepted")

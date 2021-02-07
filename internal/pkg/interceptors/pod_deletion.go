@@ -17,15 +17,15 @@ func NewPodDeletionInterceptor(drain *core.PodGracefulDrain) PodDeletionIntercep
 	}
 }
 
-func (i *PodDeletionInterceptor) Intercept(ctx context.Context, req *admission.Request, pod *corev1.Pod) (core.InterceptedAdmissionHandler, error) {
+func (i *PodDeletionInterceptor) Intercept(ctx context.Context, req *admission.Request, pod *corev1.Pod) (*core.InterceptedAdmissionResponse, error) {
 	if req.DryRun != nil && *req.DryRun == true {
-		return core.DryRunHandler{}, nil
+		return &core.InterceptedAdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
 
-	interceptedHandler, err := i.drain.HandlePodRemove(ctx, pod)
+	interceptedResponse, err := i.drain.HandlePodRemove(ctx, pod)
 	if err != nil {
 		return nil, err
 	}
 
-	return interceptedHandler, nil
+	return interceptedResponse, nil
 }
