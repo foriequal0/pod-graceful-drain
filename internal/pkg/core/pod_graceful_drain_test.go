@@ -196,6 +196,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
+				deleteAt:    now.Add(deleteAfter),
 				asyncDelete: true,
 				duration:    deleteAfter,
 				reason:      "default",
@@ -212,6 +213,8 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:  true,
+				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
+				sleep:    true,
 				duration: contextTimeout - admissionDelayOverhead,
 				reason:   "no-deny-admission config",
 				admission: InterceptedAdmissionResponse{
@@ -227,6 +230,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
 				isolate:     true,
+				deleteAt:    now.Add(deleteAfter),
 				asyncDelete: true,
 				duration:    deleteAfter,
 				reason:      "default",
@@ -244,6 +248,8 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
 				isolate:  true,
+				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
+				sleep:    true,
 				duration: contextTimeout - admissionDelayOverhead,
 				reason:   "no-deny-admission config",
 				admission: InterceptedAdmissionResponse{
@@ -265,7 +271,6 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
-				asyncDelete: true,
 				reason: "default",
 				admission: InterceptedAdmissionResponse{
 					Allow:  false,
@@ -280,6 +285,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
+				sleep:    true,
 				duration: contextTimeout - admissionDelayOverhead,
 				reason:   "no-deny-admission config",
 				admission: InterceptedAdmissionResponse{
@@ -317,6 +323,8 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:  true,
+				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
+				sleep:    true,
 				duration: contextTimeout - admissionDelayOverhead,
 				reason:   "node is Unschedulable",
 				admission: InterceptedAdmissionResponse{
@@ -333,6 +341,8 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
 				isolate:  true,
+				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
+				sleep:    true,
 				duration: contextTimeout - admissionDelayOverhead,
 				reason:   "node has unschedulable taint",
 				admission: InterceptedAdmissionResponse{
