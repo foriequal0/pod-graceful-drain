@@ -80,7 +80,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 			return admission.Errored(1, err)
 		}
 	} else if intercepted != nil {
-		logger.Info("intercepted", "allow", intercepted.Allow, "reason", intercepted.Reason)
+		logger.Info("intercepted", "admission", intercepted)
 		return intercepted.GetAdmissionResponse()
 	}
 
