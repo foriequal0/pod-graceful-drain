@@ -40,7 +40,7 @@ func (d *delayer) NewTask(duration time.Duration, task func(context.Context, boo
 	return &delayedTask{
 		delayer:  d,
 		logger:   d.logger.WithValues("taskId", id),
-		Id:       DelayedTaskId(id),
+		id:       DelayedTaskId(id),
 		duration: duration,
 		task:     task,
 	}
@@ -74,7 +74,7 @@ func (d *delayer) Stop(drain time.Duration, cleanup time.Duration) {
 type DelayedTaskId int64
 
 type DelayedTask interface {
-	WithLoggerValues(keysAndValues ...interface{}) DelayedTask
+	GetId() DelayedTaskId
 	GetDuration() time.Duration
 	RunWait(ctx context.Context) error
 	RunAsync()
@@ -83,21 +83,15 @@ type DelayedTask interface {
 type delayedTask struct {
 	delayer  *delayer
 	logger   logr.Logger
-	Id       DelayedTaskId
+	id       DelayedTaskId
 	duration time.Duration
 	task     func(context.Context, bool) error
 }
 
 var _ DelayedTask = &delayedTask{}
 
-func (t *delayedTask) WithLoggerValues(keysAndValues ...interface{}) DelayedTask {
-	return &delayedTask{
-		delayer:  t.delayer,
-		logger:   t.logger.WithValues(keysAndValues...),
-		Id:       t.Id,
-		duration: t.duration,
-		task:     t.task,
-	}
+func (t *delayedTask) GetId() DelayedTaskId {
+	return t.id
 }
 
 func (t *delayedTask) GetDuration() time.Duration {

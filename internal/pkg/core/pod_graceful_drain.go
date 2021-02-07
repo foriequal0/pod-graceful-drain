@@ -95,7 +95,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		spec = &podDelayedRemoveSpec{
 			isolate:   true,
 			deleteAt:  now.Add(deleteAfter),
-			sleepTask: d.getSleepTask(pod, deleteAfter),
+			sleepTask: d.getSleepTask(deleteAfter),
 			reason:    reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
@@ -137,11 +137,13 @@ func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) 
 	}
 	if spec.asyncDeleteTask != nil {
 		details["asyncDelete"] = map[string]interface{}{
+			"taskId":   spec.asyncDeleteTask.GetId(),
 			"duration": spec.asyncDeleteTask.GetDuration(),
 		}
 	}
 	if spec.sleepTask != nil {
 		details["sleep"] = map[string]interface{}{
+			"taskId":   spec.sleepTask.GetId(),
 			"duration": spec.sleepTask.GetDuration(),
 		}
 	}
@@ -205,7 +207,7 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
 		spec = &podDelayedRemoveSpec{
-			sleepTask: d.getSleepTask(pod, remainingTime),
+			sleepTask: d.getSleepTask(remainingTime),
 			reason:    reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
@@ -362,16 +364,9 @@ func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod, duration tim
 		}
 		logger.V(1).Info("deleted pod")
 		return nil
-	}).WithLoggerValues("pod", types.NamespacedName{
-		Namespace: pod.Namespace,
-		Name:      pod.Name,
-	}.String())
+	})
 }
 
-func (d *PodGracefulDrain) getSleepTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
-	return d.delayer.NewTask(duration, nil).
-		WithLoggerValues("pod", types.NamespacedName{
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-		}.String())
+func (d *PodGracefulDrain) getSleepTask(duration time.Duration) DelayedTask {
+	return d.delayer.NewTask(duration, nil)
 }
