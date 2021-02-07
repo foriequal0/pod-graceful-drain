@@ -393,3 +393,233 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestDelayedPodEvictionSpec(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	deleteAt := now.UTC().Add(deleteAfter).Format(time.RFC3339)
+
+	readyStatus := corev1.PodStatus{
+		Conditions: []corev1.PodCondition{
+			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+		},
+	}
+	boundPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Labels: map[string]string{
+				"selector-label": "selector-value",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+		},
+		Status: readyStatus,
+	}
+	readinessGatePod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Labels: map[string]string{
+				"irrelevant-label": "irrelevant-value",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+			ReadinessGates: []corev1.PodReadinessGate{
+				{ConditionType: "target-health.elbv2.k8s.aws"},
+			},
+		},
+		Status: corev1.PodStatus{
+			Conditions: []corev1.PodCondition{
+				{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				{Type: corev1.PodConditionType("target-health.elbv2.k8s.aws"), Status: corev1.ConditionTrue},
+			},
+		},
+	}
+	unboundPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Labels: map[string]string{
+				"irrelevant-label": "irrelevant-value",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+		},
+		Status: readyStatus,
+	}
+	notReadyPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Labels: map[string]string{
+				"selector-label": "selector-value",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+		},
+	}
+	isolatedPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Labels: map[string]string{
+				"pod-graceful-drain/wait": "true",
+			},
+			Annotations: map[string]string{
+				"pod-graceful-drain/deleteAt": deleteAt,
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+		},
+		Status: readyStatus,
+	}
+	nowaitPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
+			Annotations: map[string]string{
+				"pod-graceful-drain/deleteAt": "2006-01-02T15:04:05Z",
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "node",
+		},
+		Status: readyStatus,
+	}
+
+	service := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "svc",
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{
+				"selector-label": "selector-value",
+			},
+		},
+	}
+
+	targetTypeIP := elbv2.TargetTypeIP
+	tgbIP := elbv2.TargetGroupBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "tgb",
+		},
+		Spec: elbv2.TargetGroupBindingSpec{
+			TargetType: &targetTypeIP,
+			ServiceRef: elbv2.ServiceReference{Name: "svc"},
+		},
+	}
+	targetTypeInstance := elbv2.TargetTypeInstance
+	tgbInstance := elbv2.TargetGroupBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "tgb",
+		},
+		Spec: elbv2.TargetGroupBindingSpec{
+			TargetType: &targetTypeInstance,
+			ServiceRef: elbv2.ServiceReference{Name: "svc"},
+		},
+	}
+
+	node := corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node",
+		},
+	}
+
+	type wantedSpec struct {
+		Isolate                 bool
+		DeleteAt                time.Time
+		AsyncDeleteTaskDuration time.Duration
+	}
+
+	tests := []struct {
+		name     string
+		existing []runtime.Object
+		given    *corev1.Pod
+		timeout  *time.Duration
+		want     *wantedSpec
+	}{
+		{
+			name:     "bound pod should be delayed",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &boundPod,
+			want: &wantedSpec{
+				Isolate:                 true,
+				DeleteAt:                now.Add(deleteAfter),
+				AsyncDeleteTaskDuration: deleteAfter,
+			},
+		},
+		{
+			name:     "pod with readiness gate should be delayed",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &readinessGatePod,
+			want: &wantedSpec{
+				Isolate:                 true,
+				DeleteAt:                now.Add(deleteAfter),
+				AsyncDeleteTaskDuration: deleteAfter,
+			},
+		},
+		{
+			name:     "unbound pod is deleted immediately",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &unboundPod,
+			want:     nil,
+		},
+		{
+			name:     "Isolated pod should be delayed, again",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &isolatedPod,
+			want: &wantedSpec{},
+		},
+		{
+			name:     "not ready pod should be deleted immediately",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &notReadyPod,
+			want:     nil,
+		},
+		{
+			name:     "pod that deleted wait label should be deleted immediately",
+			existing: []runtime.Object{&node, &tgbIP, &service},
+			given:    &nowaitPod,
+			want:     nil,
+		},
+		{
+			name:     "pod of instance type service is removed immediately",
+			existing: []runtime.Object{&node, &tgbInstance, &service},
+			given:    &boundPod,
+			want:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			if tt.timeout != nil {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithDeadline(ctx, now.Add(*tt.timeout))
+				defer cancel()
+			}
+			k8sSchema := runtime.NewScheme()
+			assert.NilError(t, clientgoscheme.AddToScheme(k8sSchema))
+			assert.NilError(t, elbv2.AddToScheme(k8sSchema))
+			builder := fake.NewClientBuilder().WithScheme(k8sSchema)
+			for _, existing := range tt.existing {
+				builder = builder.WithRuntimeObjects(existing.DeepCopyObject())
+			}
+			k8sClient := builder.WithRuntimeObjects(tt.given).Build()
+
+			drain := NewPodGracefulDrain(k8sClient, zap.New(), &defaultConfig)
+			spec, err := drain.getDelayedPodEvictionSpec(ctx, tt.given.DeepCopy(), now)
+			assert.NilError(t, err)
+			var convertedSpec *wantedSpec
+			if spec != nil {
+				convertedSpec = &wantedSpec{
+					Isolate:   spec.isolate,
+					DeleteAt:  spec.deleteAt,
+				}
+				if spec.asyncDeleteTask != nil {
+					convertedSpec.AsyncDeleteTaskDuration = spec.asyncDeleteTask.GetDuration()
+				}
+			}
+			assert.DeepEqual(t, convertedSpec, tt.want)
+		})
+	}
+}
