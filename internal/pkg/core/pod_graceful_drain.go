@@ -150,7 +150,7 @@ func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) 
 }
 
 func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec) error {
-	m := NewPodMutator(d.client, pod).WithLogger(d.logger)
+	m := NewPodMutator(d.client, pod).WithLogger(d.getLoggerFor(pod))
 
 	if spec.isolate {
 		if err := m.Isolate(ctx, spec.deleteAt); err != nil {
