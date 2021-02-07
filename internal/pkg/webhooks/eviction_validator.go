@@ -61,7 +61,7 @@ func (v *EvictionValidator) Handle(ctx context.Context, req admission.Request) a
 }
 
 func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Request) admission.Response {
-	ctx, cancel := WithTimeout(ctx)
+	ctx, cancel := context.WithTimeout(ctx, TimeoutFromContext(ctx))
 	defer cancel()
 
 	eviction := v1beta1.Eviction{}
@@ -94,7 +94,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 func (v *EvictionValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod-eviction", &admission.Webhook{
 		Handler:         v,
-		WithContextFunc: WithTimeoutContext,
+		WithContextFunc: NewContextFromRequest,
 	})
 	return nil
 }

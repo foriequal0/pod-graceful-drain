@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	timeoutContextKey     = "timeoutContextKey"
 	webhookDefaultTimeout = 10 * time.Second
 )
 
-func WithTimeoutContext(ctx context.Context, req *http.Request) context.Context {
+type contextKey struct{}
+
+func NewContextFromRequest(ctx context.Context, req *http.Request) context.Context {
 	query := req.URL.Query()
 	timeout := query.Get("timeout")
 	if len(timeout) == 0 {
@@ -23,14 +24,14 @@ func WithTimeoutContext(ctx context.Context, req *http.Request) context.Context 
 		ctrl.Log.Error(err, "unable to parse timeout")
 	}
 
-	return context.WithValue(ctx, timeoutContextKey, &duration)
+	return context.WithValue(ctx, contextKey{}, &duration)
 }
 
-func WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	timeout := ctx.Value(timeoutContextKey).(*time.Duration)
+func TimeoutFromContext(ctx context.Context) time.Duration {
+	timeout := ctx.Value(contextKey{}).(*time.Duration)
 	if timeout != nil {
-		return context.WithTimeout(ctx, *timeout)
+		return *timeout
 	} else {
-		return context.WithTimeout(ctx, webhookDefaultTimeout)
+		return webhookDefaultTimeout
 	}
 }
