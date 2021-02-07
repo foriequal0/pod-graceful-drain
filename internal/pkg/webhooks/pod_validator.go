@@ -70,7 +70,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 	}
 
 	logger := v.logger.WithValues("pod", types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name})
-	logger.V(1).Info("Handle pod deletion")
+	logger.Info("Handling pod deletion")
 
 	intercepted, err := v.interceptor.Intercept(ctx, &req, &pod)
 	if err != nil {
