@@ -68,7 +68,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to get pod deletion info")
 	} else if delayInfo.Isolated {
-		spec, err := d.handleReentry(ctx, pod, delayInfo, now)
+		spec, err := d.getReentrySpec(ctx, pod, delayInfo, now)
 		if err != nil {
 			return nil, errors.Wrapf(err, "unable to getPodDelayedRemoveSpec pod deletion reentry")
 		}
@@ -171,7 +171,7 @@ func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spe
 	return nil
 }
 
-// handleReentry handles these cases:
+// getReentrySpec handles these cases:
 // * apiserver immediately retried the deletion when we patched the pod and denied the admission
 //   since it is indistinguishable from the collision. So it should keep deny.
 // * We disabled wait sentinel label and deleted the pod, but the patch hasn't been propagated fast enough
@@ -179,7 +179,7 @@ func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spe
 //   => deletePodAfter will retry with back-offs, so we keep denying the admission.
 // * Users and controllers manually tries to delete the pod before deleteAt.
 //   => User can see the admission report message. Controller should getPodDelayedRemoveSpec admission failures.
-func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *podDelayedRemoveSpec, err error) {
+func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *podDelayedRemoveSpec, err error) {
 	if !info.Wait {
 		return nil, nil
 	}
