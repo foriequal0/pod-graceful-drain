@@ -14,7 +14,6 @@ pull_request_rules:
   - name: Cleanup mergify tag on close
     conditions:
       - closed
-      - label=mergify
     actions:
       delete_head_branch: {}
       label:
