@@ -49,7 +49,7 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 
 	d.logSpec(pod, spec)
 
-	if err := d.executeSpec(ctx, pod, spec, now); err != nil {
+	if err := d.executeSpec(ctx, pod, spec); err != nil {
 		return nil, err
 	}
 	return &spec.admission, nil
@@ -57,7 +57,9 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 
 type podDelayedRemoveSpec struct {
 	isolate     bool
+	deleteAt    time.Time
 	asyncDelete bool
+	sleep       bool
 	duration    time.Duration
 	reason      string
 	admission   InterceptedAdmissionResponse
@@ -94,10 +96,13 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to determine whether it should be denied")
 	} else if !shouldDeny {
+		deleteAfter := getAdmissionDelayTimeout(ctx, now)
 		spec = &podDelayedRemoveSpec{
 			isolate:     true,
+			deleteAt:    now.Add(deleteAfter),
 			asyncDelete: false,
-			duration:    getAdmissionDelayTimeout(ctx, now),
+			sleep:       true,
+			duration:    deleteAfter,
 			reason:      reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
@@ -107,6 +112,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	} else {
 		spec = &podDelayedRemoveSpec{
 			isolate:     true,
+			deleteAt:    now.Add(d.config.DeleteAfter),
 			asyncDelete: true,
 			duration:    d.config.DeleteAfter,
 			reason:      reason,
@@ -131,30 +137,33 @@ func getAdmissionDelayTimeout(ctx context.Context, now time.Time) time.Duration 
 }
 
 func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) {
-	var msg string
+	details := map[string]interface{}{}
 	if spec.isolate {
-		if spec.asyncDelete {
-			msg = "isolate, deny admission, async delete"
-		} else {
-			msg = "isolate, allow admission after sleep"
+		details["isolate"] = map[string]interface{}{
+			"deleteAfter": spec.duration,
 		}
-	} else {
-		if spec.asyncDelete {
-			msg = "reentry, deny admission"
-		} else {
-			msg = "reentry, allow admission after sleep"
+	}
+	if spec.asyncDelete {
+		details["asyncDelete"] = map[string]interface{}{
+			"duration": spec.duration,
+		}
+	}
+	if spec.sleep {
+		details["sleep"] = map[string]interface{}{
+			"duration": spec.duration,
 		}
 	}
 
 	d.getLoggerFor(pod).Info("delayed pod remove spec",
-		"detail", msg, "duration", spec.duration.Truncate(time.Second), "reason", spec.reason)
+		"details", details,
+		"reason", spec.reason,
+		"admission", spec.admission.Allow)
 }
 
-func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec, now time.Time) error {
+func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec) error {
 	if spec.isolate {
 		d.getLoggerFor(pod).Info("isolating")
-		deleteAt := now.Add(spec.duration)
-		if err := Isolate(d.k8sClient, ctx, pod, deleteAt); err != nil {
+		if err := Isolate(d.k8sClient, ctx, pod, spec.deleteAt); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
@@ -164,10 +173,10 @@ func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spe
 	}
 
 	if spec.asyncDelete {
-		if spec.duration != time.Duration(0) {
-			d.getDelayedPodRemoveTask(pod).RunAfterAsync(spec.duration)
-		}
-	} else {
+		d.getDelayedPodRemoveTask(pod).RunAfterAsync(spec.duration)
+	}
+
+	if spec.sleep {
 		if err := d.getSleepTask(pod).RunAfterWait(ctx, spec.duration); err != nil {
 			return err
 		}
@@ -204,10 +213,9 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
 		spec = &podDelayedRemoveSpec{
-			isolate:     false,
-			asyncDelete: false,
-			duration:    remainingTime,
-			reason:      reason,
+			sleep:    true,
+			duration: remainingTime,
+			reason:   reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
 				Reason: "Pod deletion is delayed enough (reentry)",
@@ -215,9 +223,7 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		}
 	} else {
 		spec = &podDelayedRemoveSpec{
-			isolate:     false,
-			asyncDelete: true,
-			reason:      reason,
+			reason: reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  false,
 				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
