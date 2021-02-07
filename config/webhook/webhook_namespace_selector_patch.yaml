@@ -1,15 +1,21 @@
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
+kind: MutatingWebhookConfiguration
 metadata:
-  name: validating-webhook-configuration
+  name: mutating-webhook-configuration
 webhooks:
-  - name: vpodseviction.pod-graceful-drain.io
+  - name: mpodseviction.pod-graceful-drain.io
     namespaceSelector:
       matchExpressions:
         - key: pod-graceful-drain
           operator: In
           values:
             - enabled
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
   - name: vpod.pod-graceful-drain.io
     namespaceSelector:
       matchExpressions:

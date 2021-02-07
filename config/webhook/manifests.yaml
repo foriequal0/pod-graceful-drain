@@ -1,10 +1,10 @@
 
 ---
 apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
+kind: MutatingWebhookConfiguration
 metadata:
   creationTimestamp: null
-  name: validating-webhook-configuration
+  name: mutating-webhook-configuration
 webhooks:
 - admissionReviewVersions:
   - v1
@@ -12,9 +12,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-core-v1-pod-eviction
+      path: /mutate-core-v1-pod-eviction
   failurePolicy: Ignore
-  name: vpodseviction.pod-graceful-drain.io
+  name: mpodseviction.pod-graceful-drain.io
   rules:
   - apiGroups:
     - ""
@@ -25,6 +25,14 @@ webhooks:
     resources:
     - pods/eviction
   sideEffects: NoneOnDryRun
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
 - admissionReviewVersions:
   - v1
   clientConfig:

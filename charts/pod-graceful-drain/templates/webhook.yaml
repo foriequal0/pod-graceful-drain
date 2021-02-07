@@ -33,6 +33,18 @@ webhooks:
     namespaceSelector:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  {{- if .Values.enableCertManager }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.namePrefix" . }}-serving-cert
+  {{- end }}
+  name: {{ include "pod-graceful-drain.fullname" . }}-webhook
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+webhooks:
   - admissionReviewVersions: [v1]
     clientConfig:
       {{- if not .Values.enableCertManager }}
@@ -41,9 +53,9 @@ webhooks:
       service:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-core-v1-pod-eviction
+        path: /mutate-core-v1-pod-eviction
     failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
-    name: vpodseviction.pod-graceful-drain.io
+    name: mpodseviction.pod-graceful-drain.io
     rules:
       - apiGroups: [""]
         apiVersions: [v1]

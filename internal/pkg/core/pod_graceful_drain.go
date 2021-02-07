@@ -5,6 +5,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -226,6 +227,106 @@ func (d *PodGracefulDrain) canDenyAdmission(ctx context.Context, pod *corev1.Pod
 		return false, "node might be draining", nil
 	}
 	return true, "default", nil
+}
+
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+
+func (d *PodGracefulDrain) DelayPodEviction(ctx context.Context, eviction *v1beta1.Eviction) (bool, error) {
+	now := time.Now()
+	logger := d.getLoggerFor(eviction)
+
+	podKey := types.NamespacedName{
+		Namespace: eviction.Namespace,
+		Name:      eviction.Name,
+	}
+	pod := &corev1.Pod{}
+	if err := d.client.Get(ctx, podKey, pod); err != nil {
+		return false, errors.Wrapf(err, "unable to get the pod")
+	}
+
+	spec, err := d.getDelayedPodEvictionSpec(ctx, pod, now)
+	if err != nil || spec == nil {
+		return false, err
+	}
+
+	spec.log(logger)
+
+	if err := spec.execute(ctx, NewPodMutator(d.client, pod).WithLogger(logger)); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+type delayedPodEvictionSpec struct {
+	isolate         bool
+	deleteAt        time.Time
+	asyncDeleteTask DelayedTask
+}
+
+func (d *PodGracefulDrain) getDelayedPodEvictionSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (spec *delayedPodEvictionSpec, err error) {
+	if !IsPodReady(pod) {
+		return nil, nil
+	}
+
+	delayInfo, err := GetPodDeletionDelayInfo(pod)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to get pod deletion info")
+	} else if delayInfo.Isolated {
+		remainingTime := delayInfo.GetRemainingTime(now)
+		if remainingTime == time.Duration(0) {
+			return nil, nil
+		}
+
+		// reentry
+		return &delayedPodEvictionSpec{}, nil
+	}
+
+	hadServiceTargetTypeIP, err := DidPodHaveServicesTargetTypeIP(ctx, d.client, pod)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to determine whether the pod had service with ip target-type")
+	} else if !hadServiceTargetTypeIP {
+		return nil, nil
+	}
+
+	spec = &delayedPodEvictionSpec{
+		isolate:         true,
+		deleteAt:        now.Add(d.config.DeleteAfter),
+		asyncDeleteTask: d.getDelayedPodDeletionTask(pod, d.config.DeleteAfter),
+	}
+	return
+}
+
+func (s *delayedPodEvictionSpec) log(logger logr.Logger) {
+	details := map[string]interface{}{}
+	if s.isolate {
+		details["isolate"] = map[string]interface{}{
+			"deleteAt": s.deleteAt,
+		}
+	}
+	if s.asyncDeleteTask != nil {
+		details["asyncDelete"] = map[string]interface{}{
+			"taskId":   s.asyncDeleteTask.GetId(),
+			"duration": s.asyncDeleteTask.GetDuration(),
+		}
+	}
+
+	logger.Info("delayed pod eviction spec",
+		"details", details)
+}
+
+func (s *delayedPodEvictionSpec) execute(ctx context.Context, m *PodMutator) error {
+	if s.isolate {
+		if err := m.Isolate(ctx, s.deleteAt); err != nil {
+			return errors.Wrap(err, "unable to isolate the pod")
+		}
+	}
+
+	if s.asyncDeleteTask != nil {
+		s.asyncDeleteTask.RunAsync()
+	}
+
+	return nil
 }
 
 func (d *PodGracefulDrain) Start(ctx context.Context) error {
