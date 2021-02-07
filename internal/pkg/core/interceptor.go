@@ -22,9 +22,9 @@ func NewInterceptor(drain *PodGracefulDrain, k8sClient client.Client) Intercepto
 	}
 }
 
-func (i *Interceptor) InterceptPodDeletion(ctx context.Context, req *admission.Request, pod *corev1.Pod) (*InterceptedAdmissionResponse, error) {
+func (i *Interceptor) InterceptPodDeletion(ctx context.Context, req *admission.Request, pod *corev1.Pod) (InterceptedAdmissionResponse, error) {
 	if req.DryRun != nil && *req.DryRun == true {
-		return &InterceptedAdmissionResponse{Allow: true, Reason: "dry-run"}, nil
+		return AdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
 
 	interceptedResponse, err := i.drain.DelayPodDeletion(ctx, pod)
@@ -36,9 +36,9 @@ func (i *Interceptor) InterceptPodDeletion(ctx context.Context, req *admission.R
 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
-func (i *Interceptor) InterceptPodEviction(ctx context.Context, req *admission.Request, eviction *v1beta1.Eviction) (*InterceptedAdmissionResponse, error) {
+func (i *Interceptor) InterceptPodEviction(ctx context.Context, req *admission.Request, eviction *v1beta1.Eviction) (InterceptedAdmissionResponse, error) {
 	if req.DryRun != nil && *req.DryRun == true {
-		return &InterceptedAdmissionResponse{Allow: true, Reason: "dry-run"}, nil
+		return AdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
 
 	podKey := types.NamespacedName{

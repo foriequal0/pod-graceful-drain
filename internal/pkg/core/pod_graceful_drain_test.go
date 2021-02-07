@@ -184,7 +184,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 		AsyncDeleteTaskDuration time.Duration
 		SleepTaskDuration       time.Duration
 		Reason                  string
-		Admission               InterceptedAdmissionResponse
+		Admission               AdmissionResponse
 	}
 
 	tests := []struct {
@@ -205,7 +205,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:                now.Add(deleteAfter),
 				AsyncDeleteTaskDuration: deleteAfter,
 				Reason:                  "default",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
 				},
@@ -221,7 +221,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
 				Reason:            "no-deny-admission config",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -237,7 +237,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:                now.Add(deleteAfter),
 				AsyncDeleteTaskDuration: deleteAfter,
 				Reason:                  "default",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
 				},
@@ -254,7 +254,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
 				Reason:            "no-deny-admission config",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -274,7 +274,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 			given:    &isolatedPod,
 			want: &wantedSpec{
 				Reason: "default",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
 				},
@@ -289,7 +289,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 			want: &wantedSpec{
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
 				Reason:            "no-deny-admission config",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough (reentry)",
 				},
@@ -327,7 +327,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
 				Reason:            "node might be draining",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -344,7 +344,7 @@ func TestDelayedPodDeletionSpec(t *testing.T) {
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
 				Reason:            "node might be draining",
-				Admission: InterceptedAdmissionResponse{
+				Admission: AdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
