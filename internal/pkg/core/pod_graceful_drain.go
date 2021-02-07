@@ -6,10 +6,8 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/aws-load-balancer-controller/pkg/targetgroupbinding"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"strings"
 	"time"
 )
 
@@ -77,17 +75,28 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		return spec, nil
 	}
 
-	shouldIntercept, err := d.shouldIntercept(ctx, pod)
+	hadServiceTargetTypeIP, err := DidPodHaveServicesTargetTypeIP(ctx, d.client, pod)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to determine whether the pod deletion should be deleted")
-	} else if !shouldIntercept {
+		return nil, errors.Wrapf(err, "unable to determine whether the pod had service with ip target-type")
+	} else if !hadServiceTargetTypeIP {
 		return nil, nil
 	}
 
-	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
+	canDeny, reason, err := d.canDenyAdmission(ctx, pod)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to determine whether it should be denied")
-	} else if !shouldDeny {
+		return nil, errors.Wrap(err, "unable to determine whether it can be denied")
+	} else if canDeny {
+		spec = &podDelayedRemoveSpec{
+			isolate:         true,
+			deleteAt:        now.Add(d.config.DeleteAfter),
+			asyncDeleteTask: d.getDelayedPodRemoveTask(pod, d.config.DeleteAfter),
+			reason:          reason,
+			admission: InterceptedAdmissionResponse{
+				Allow:  false,
+				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
+			},
+		}
+	} else {
 		deleteAfter := getAdmissionDelayTimeout(ctx, now)
 		spec = &podDelayedRemoveSpec{
 			isolate:   true,
@@ -97,17 +106,6 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
 				Reason: "Pod deletion is delayed enough",
-			},
-		}
-	} else {
-		spec = &podDelayedRemoveSpec{
-			isolate:         true,
-			deleteAt:        now.Add(d.config.DeleteAfter),
-			asyncDeleteTask: d.getDelayedPodRemoveTask(pod, d.config.DeleteAfter),
-			reason:          reason,
-			admission: InterceptedAdmissionResponse{
-				Allow:  false,
-				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
 			},
 		}
 	}
@@ -191,10 +189,18 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		return nil, nil
 	}
 
-	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
+	canDeny, reason, err := d.canDenyAdmission(ctx, pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether it should be denied")
-	} else if !shouldDeny {
+	} else if canDeny {
+		spec = &podDelayedRemoveSpec{
+			reason: reason,
+			admission: InterceptedAdmissionResponse{
+				Allow:  false,
+				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
+			},
+		}
+	} else {
 		timeout := getAdmissionDelayTimeout(ctx, now)
 		if remainingTime > timeout {
 			remainingTime = timeout
@@ -208,61 +214,22 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 				Reason: "Pod deletion is delayed enough (reentry)",
 			},
 		}
-	} else {
-		spec = &podDelayedRemoveSpec{
-			reason: reason,
-			admission: InterceptedAdmissionResponse{
-				Allow:  false,
-				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
-			},
-		}
 	}
 	return
 }
 
-func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod) (bool, error) {
-	svcs, err := getRegisteredServices(d.client, ctx, pod)
-	if err != nil {
-		return false, err
-	}
-
-	if len(svcs) == 0 {
-		for _, item := range pod.Spec.ReadinessGates {
-			if strings.HasPrefix(string(item.ConditionType), targetgroupbinding.TargetHealthPodConditionTypePrefix) {
-				// The pod once had TargetGroupBindings, but it is somehow gone.
-				// We don't know whether its TargetType is IP, it's target group, etc.
-				// It might be worth to to give some time to ELB.
-				return true, nil
-			}
-		}
-		return false, nil
-	}
-	return true, nil
-}
-
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
-func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, string, error) {
+func (d *PodGracefulDrain) canDenyAdmission(ctx context.Context, pod *corev1.Pod) (bool, string, error) {
 	if d.config.NoDenyAdmission {
 		return false, "no-deny-admission config", nil
 	}
 
-	nodeName := pod.Spec.NodeName
-	var node corev1.Node
-	if err := d.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
-		return false, "", errors.Wrapf(err, "cannot get node %v", nodeName)
-	}
-
-	// Node is about to be drained.
-	// `kubectl drain` will fail and stop if it meets the first pod that cannot be deleted.
-	// It'll cordon a node before draining, so we detect it, and try not to deny the admission.
-	if node.Spec.Unschedulable {
-		return false, "node is Unschedulable", nil
-	}
-	for _, taint := range node.Spec.Taints {
-		if taint.Key == corev1.TaintNodeUnschedulable {
-			return false, "node has unschedulable taint", nil
-		}
+	draining, err := IsPodInDrainingNode(ctx, d.client, pod)
+	if err != nil {
+		return false, "", nil
+	} else if draining {
+		return false, "node might be draining", nil
 	}
 	return true, "default", nil
 }

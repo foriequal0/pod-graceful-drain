@@ -329,7 +329,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				Isolate:           true,
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
-				Reason:            "node is Unschedulable",
+				Reason:            "node might be draining",
 				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
@@ -346,7 +346,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				Isolate:           true,
 				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
 				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
-				Reason:            "node has unschedulable taint",
+				Reason:            "node might be draining",
 				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
