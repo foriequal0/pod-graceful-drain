@@ -9,7 +9,7 @@ import (
 )
 
 type Delayer interface {
-	NewTask(task func(context.Context, bool) error) DelayedTask
+	NewTask(duration time.Duration, task func(context.Context, bool) error) DelayedTask
 	Stop(drain time.Duration, cleanup time.Duration)
 }
 
@@ -34,14 +34,15 @@ func NewDelayer(logger logr.Logger) Delayer {
 	}
 }
 
-func (d *delayer) NewTask(task func(context.Context, bool) error) DelayedTask {
+func (d *delayer) NewTask(duration time.Duration, task func(context.Context, bool) error) DelayedTask {
 	id := atomic.AddInt64(&d.counter, 1)
 
 	return &delayedTask{
-		delayer: d,
-		logger:  d.logger.WithValues("taskId", id),
-		Id:      DelayedTaskId(id),
-		task:    task,
+		delayer:  d,
+		logger:   d.logger.WithValues("taskId", id),
+		Id:       DelayedTaskId(id),
+		duration: duration,
+		task:     task,
 	}
 }
 
@@ -74,29 +75,36 @@ type DelayedTaskId int64
 
 type DelayedTask interface {
 	WithLoggerValues(keysAndValues ...interface{}) DelayedTask
-	RunAfterWait(ctx context.Context, duration time.Duration) error
-	RunAfterAsync(duration time.Duration)
+	GetDuration() time.Duration
+	RunWait(ctx context.Context) error
+	RunAsync()
 }
 
 type delayedTask struct {
-	delayer *delayer
-	logger  logr.Logger
-	Id      DelayedTaskId
-	task    func(context.Context, bool) error
+	delayer  *delayer
+	logger   logr.Logger
+	Id       DelayedTaskId
+	duration time.Duration
+	task     func(context.Context, bool) error
 }
 
 var _ DelayedTask = &delayedTask{}
 
 func (t *delayedTask) WithLoggerValues(keysAndValues ...interface{}) DelayedTask {
 	return &delayedTask{
-		delayer: t.delayer,
-		logger:  t.logger.WithValues(keysAndValues...),
-		Id:      t.Id,
-		task:    t.task,
+		delayer:  t.delayer,
+		logger:   t.logger.WithValues(keysAndValues...),
+		Id:       t.Id,
+		duration: t.duration,
+		task:     t.task,
 	}
 }
 
-func (t *delayedTask) RunAfterWait(ctx context.Context, duration time.Duration) error {
+func (t *delayedTask) GetDuration() time.Duration {
+	return t.duration
+}
+
+func (t *delayedTask) RunWait(ctx context.Context) error {
 	t.delayer.tasksWaitGroup.Add(1)
 	defer t.delayer.tasksWaitGroup.Done()
 
@@ -110,10 +118,10 @@ func (t *delayedTask) RunAfterWait(ctx context.Context, duration time.Duration) 
 		}
 	}()
 
-	return t.run(innerCtx, duration)
+	return t.run(innerCtx, t.duration)
 }
 
-func (t *delayedTask) RunAfterAsync(duration time.Duration) {
+func (t *delayedTask) RunAsync() {
 	t.delayer.tasksWaitGroup.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -128,7 +136,7 @@ func (t *delayedTask) RunAfterAsync(duration time.Duration) {
 		defer t.delayer.tasksWaitGroup.Done()
 		defer cancel()
 
-		err := t.run(ctx, duration)
+		err := t.run(ctx, t.duration)
 		_ = err
 	}()
 

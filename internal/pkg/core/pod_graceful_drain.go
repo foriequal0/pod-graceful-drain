@@ -56,17 +56,12 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 }
 
 type podDelayedRemoveSpec struct {
-	isolate     bool
-	deleteAt    time.Time
-	asyncDelete bool
-	sleep       bool
-	duration    time.Duration
-	reason      string
-	admission   InterceptedAdmissionResponse
-}
-
-func (s podDelayedRemoveSpec) Equal(o podDelayedRemoveSpec) bool {
-	return s == o
+	isolate         bool
+	deleteAt        time.Time
+	asyncDeleteTask DelayedTask
+	sleepTask       DelayedTask
+	reason          string
+	admission       InterceptedAdmissionResponse
 }
 
 func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (spec *podDelayedRemoveSpec, err error) {
@@ -98,12 +93,10 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	} else if !shouldDeny {
 		deleteAfter := getAdmissionDelayTimeout(ctx, now)
 		spec = &podDelayedRemoveSpec{
-			isolate:     true,
-			deleteAt:    now.Add(deleteAfter),
-			asyncDelete: false,
-			sleep:       true,
-			duration:    deleteAfter,
-			reason:      reason,
+			isolate:   true,
+			deleteAt:  now.Add(deleteAfter),
+			sleepTask: d.getSleepTask(pod, deleteAfter),
+			reason:    reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
 				Reason: "Pod deletion is delayed enough",
@@ -111,11 +104,10 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		}
 	} else {
 		spec = &podDelayedRemoveSpec{
-			isolate:     true,
-			deleteAt:    now.Add(d.config.DeleteAfter),
-			asyncDelete: true,
-			duration:    d.config.DeleteAfter,
-			reason:      reason,
+			isolate:         true,
+			deleteAt:        now.Add(d.config.DeleteAfter),
+			asyncDeleteTask: d.getDelayedPodRemoveTask(pod, d.config.DeleteAfter),
+			reason:          reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  false,
 				Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
@@ -140,17 +132,17 @@ func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) 
 	details := map[string]interface{}{}
 	if spec.isolate {
 		details["isolate"] = map[string]interface{}{
-			"deleteAfter": spec.duration,
+			"deleteAt": spec.deleteAt,
 		}
 	}
-	if spec.asyncDelete {
+	if spec.asyncDeleteTask != nil {
 		details["asyncDelete"] = map[string]interface{}{
-			"duration": spec.duration,
+			"duration": spec.asyncDeleteTask.GetDuration(),
 		}
 	}
-	if spec.sleep {
+	if spec.sleepTask != nil {
 		details["sleep"] = map[string]interface{}{
-			"duration": spec.duration,
+			"duration": spec.sleepTask.GetDuration(),
 		}
 	}
 
@@ -172,12 +164,12 @@ func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spe
 		d.getLoggerFor(pod).V(1).Info("isolated")
 	}
 
-	if spec.asyncDelete {
-		d.getDelayedPodRemoveTask(pod).RunAfterAsync(spec.duration)
+	if spec.asyncDeleteTask != nil {
+		spec.asyncDeleteTask.RunAsync()
 	}
 
-	if spec.sleep {
-		if err := d.getSleepTask(pod).RunAfterWait(ctx, spec.duration); err != nil {
+	if spec.sleepTask != nil {
+		if err := spec.sleepTask.RunWait(ctx); err != nil {
 			return err
 		}
 	}
@@ -213,9 +205,8 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
 		spec = &podDelayedRemoveSpec{
-			sleep:    true,
-			duration: remainingTime,
-			reason:   reason,
+			sleepTask: d.getSleepTask(pod, remainingTime),
+			reason:    reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  true,
 				Reason: "Pod deletion is delayed enough (reentry)",
@@ -321,7 +312,7 @@ func (d *PodGracefulDrain) cleanupPreviousRun(ctx context.Context) error {
 			deleteAfter = delayInfo.GetRemainingTime(now)
 		}
 
-		d.getDelayedPodRemoveTask(pod).RunAfterAsync(deleteAfter)
+		d.getDelayedPodRemoveTask(pod, deleteAfter).RunAsync()
 	}
 	return nil
 }
@@ -337,8 +328,8 @@ func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=delete
 
-func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod) DelayedTask {
-	return d.delayer.NewTask(func(ctx context.Context, _ bool) error {
+func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
+	return d.delayer.NewTask(duration, func(ctx context.Context, _ bool) error {
 		logger := logr.FromContextOrDiscard(ctx)
 
 		logger.Info("disabling label")
@@ -377,8 +368,8 @@ func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod) DelayedTask 
 	}.String())
 }
 
-func (d *PodGracefulDrain) getSleepTask(pod *corev1.Pod) DelayedTask {
-	return d.delayer.NewTask(nil).
+func (d *PodGracefulDrain) getSleepTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
+	return d.delayer.NewTask(duration, nil).
 		WithLoggerValues("pod", types.NamespacedName{
 			Namespace: pod.Namespace,
 			Name:      pod.Name,
