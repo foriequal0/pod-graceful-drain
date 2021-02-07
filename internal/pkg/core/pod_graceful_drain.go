@@ -5,10 +5,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/aws-load-balancer-controller/pkg/targetgroupbinding"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -23,20 +20,20 @@ const (
 )
 
 type PodGracefulDrain struct {
-	k8sClient client.Client
-	logger    logr.Logger
-	config    *PodGracefulDrainConfig
-	delayer   Delayer
+	client  client.Client
+	logger  logr.Logger
+	config  *PodGracefulDrainConfig
+	delayer Delayer
 }
 
 var _ manager.Runnable = &PodGracefulDrain{}
 
 func NewPodGracefulDrain(k8sClient client.Client, logger logr.Logger, config *PodGracefulDrainConfig) PodGracefulDrain {
 	return PodGracefulDrain{
-		k8sClient: k8sClient,
-		logger:    logger.WithName("pod-graceful-drain"),
-		config:    config,
-		delayer:   NewDelayer(logger),
+		client:  k8sClient,
+		logger:  logger.WithName("pod-graceful-drain"),
+		config:  config,
+		delayer: NewDelayer(logger),
 	}
 }
 
@@ -155,15 +152,12 @@ func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) 
 }
 
 func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec) error {
+	m := NewPodMutator(d.client, pod).WithLogger(d.logger)
+
 	if spec.isolate {
-		d.getLoggerFor(pod).Info("isolating")
-		if err := Isolate(d.k8sClient, ctx, pod, spec.deleteAt); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
+		if err := m.Isolate(ctx, spec.deleteAt); err != nil {
 			return errors.Wrap(err, "unable to isolate the pod")
 		}
-		d.getLoggerFor(pod).V(1).Info("isolated")
 	}
 
 	if spec.asyncDeleteTask != nil {
@@ -227,7 +221,7 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 }
 
 func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod) (bool, error) {
-	svcs, err := getRegisteredServices(d.k8sClient, ctx, pod)
+	svcs, err := getRegisteredServices(d.client, ctx, pod)
 	if err != nil {
 		return false, err
 	}
@@ -255,7 +249,7 @@ func (d *PodGracefulDrain) shouldDenyAdmission(ctx context.Context, pod *corev1.
 
 	nodeName := pod.Spec.NodeName
 	var node corev1.Node
-	if err := d.k8sClient.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
+	if err := d.client.Get(ctx, types.NamespacedName{Name: nodeName}, &node); err != nil {
 		return false, "", errors.Wrapf(err, "cannot get node %v", nodeName)
 	}
 
@@ -298,7 +292,7 @@ func (d *PodGracefulDrain) Start(ctx context.Context) error {
 func (d *PodGracefulDrain) cleanupPreviousRun(ctx context.Context) error {
 	podList := &corev1.PodList{}
 	// select all pods regardless of its value. These pods were about to be deleted anyway when its value is empty.
-	if err := d.k8sClient.List(ctx, podList, client.HasLabels{WaitLabelKey}); err != nil {
+	if err := d.client.List(ctx, podList, client.HasLabels{WaitLabelKey}); err != nil {
 		return errors.Wrapf(err, "cannot list pods with wait sentinel label")
 	}
 
@@ -328,42 +322,11 @@ func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
 	return d.logger.WithValues("pod", podName.String())
 }
 
-// +kubebuilder:rbac:groups="",resources=pods,verbs=delete
-
 func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
 	return d.delayer.NewTask(duration, func(ctx context.Context, _ bool) error {
-		logger := logr.FromContextOrDiscard(ctx)
-
-		logger.Info("disabling label")
-		if err := DisableWaitLabel(d.k8sClient, ctx, pod); err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return errors.Wrap(err, "cannot disable wait sentinel label")
-		}
-		logger.V(1).Info("disabled label")
-
-		logger.Info("deleting pod")
-		err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
-			if err := d.k8sClient.Delete(ctx, pod, client.Preconditions{UID: &pod.UID}); err != nil {
-				if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
-					// The pod is already deleted. Okay to ignore
-					return true, nil
-				}
-				// Intercept might deny the deletion as too early until DisableWaitLabel patch is propagated.
-				// TODO: error is actually admission denial
-				return false, nil
-			}
-			return true, nil
-		})
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return nil
-			}
-			return errors.Wrap(err, "cannot delete the pod")
-		}
-		logger.V(1).Info("deleted pod")
-		return nil
+		return NewPodMutator(d.client, pod).
+			WithLogger(logr.FromContextOrDiscard(ctx)).
+			DisableWaitLabelAndDelete(ctx)
 	})
 }
 
