@@ -63,7 +63,7 @@ func (s podDelayedRemoveSpec) Equal(o podDelayedRemoveSpec) bool {
 	return s == o
 }
 
-func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (*podDelayedRemoveSpec, error) {
+func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (spec *podDelayedRemoveSpec, err error) {
 	if !IsPodReady(pod) {
 		return nil, nil
 	}
@@ -89,24 +89,22 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to determine whether it should be denied")
-	}
-	var removeSpec podDelayedRemoveSpec
-	if !shouldDeny {
-		removeSpec = podDelayedRemoveSpec{
+	} else if !shouldDeny {
+		spec = &podDelayedRemoveSpec{
 			isolate:     true,
 			asyncDelete: false,
 			duration:    getAdmissionDelayTimeout(ctx, now),
 			reason:      reason,
 		}
 	} else {
-		removeSpec = podDelayedRemoveSpec{
+		spec = &podDelayedRemoveSpec{
 			isolate:     true,
 			asyncDelete: true,
 			duration:    d.config.DeleteAfter,
 			reason:      reason,
 		}
 	}
-	return &removeSpec, nil
+	return
 }
 
 func getAdmissionDelayTimeout(ctx context.Context, now time.Time) time.Duration {
@@ -174,7 +172,7 @@ func (d *PodGracefulDrain) translateSpec(ctx context.Context, pod *corev1.Pod, s
 //   => deletePodAfter will retry with back-offs, so we keep denying the admission.
 // * Users and controllers manually tries to delete the pod before deleteAt.
 //   => User can see the admission report message. Controller should getPodDelayedRemoveSpec admission failures.
-func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (*podDelayedRemoveSpec, error) {
+func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *podDelayedRemoveSpec, err error) {
 	if !info.Wait {
 		return nil, nil
 	}
@@ -185,7 +183,6 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 	}
 
 	shouldDeny, reason, err := d.shouldDenyAdmission(ctx, pod)
-	var spec podDelayedRemoveSpec
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether it should be denied")
 	} else if !shouldDeny {
@@ -194,20 +191,20 @@ func (d *PodGracefulDrain) handleReentry(ctx context.Context, pod *corev1.Pod, i
 			remainingTime = timeout
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
-		spec = podDelayedRemoveSpec{
+		spec = &podDelayedRemoveSpec{
 			isolate:     false,
 			asyncDelete: false,
 			duration:    remainingTime,
 			reason:      reason,
 		}
 	} else {
-		spec = podDelayedRemoveSpec{
+		spec = &podDelayedRemoveSpec{
 			isolate:     false,
 			asyncDelete: true,
 			reason:      reason,
 		}
 	}
-	return &spec, nil
+	return
 }
 
 func (d *PodGracefulDrain) shouldIntercept(ctx context.Context, pod *corev1.Pod) (bool, error) {
