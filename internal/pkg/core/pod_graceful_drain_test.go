@@ -181,26 +181,34 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 		},
 	}
 
+	type wantedSpec struct {
+		Isolate                 bool
+		DeleteAt                time.Time
+		AsyncDeleteTaskDuration time.Duration
+		SleepTaskDuration       time.Duration
+		Reason                  string
+		Admission               InterceptedAdmissionResponse
+	}
+
 	tests := []struct {
 		name     string
 		existing []runtime.Object
 		config   []PodGracefulDrainConfig
 		given    *corev1.Pod
 		timeout  *time.Duration
-		want     *podDelayedRemoveSpec
+		want     *wantedSpec
 	}{
 		{
 			name:     "bound pod should be delayed",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &boundPod,
-			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				deleteAt:    now.Add(deleteAfter),
-				asyncDelete: true,
-				duration:    deleteAfter,
-				reason:      "default",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:                 true,
+				DeleteAt:                now.Add(deleteAfter),
+				AsyncDeleteTaskDuration: deleteAfter,
+				Reason:                  "default",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
 				},
@@ -211,13 +219,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			timeout:  &contextTimeout,
 			given:    &boundPod,
-			want: &podDelayedRemoveSpec{
-				isolate:  true,
-				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
-				sleep:    true,
-				duration: contextTimeout - admissionDelayOverhead,
-				reason:   "no-deny-admission config",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:           true,
+				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
+				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
+				Reason:            "no-deny-admission config",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -228,13 +235,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &readinessGatePod,
-			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				deleteAt:    now.Add(deleteAfter),
-				asyncDelete: true,
-				duration:    deleteAfter,
-				reason:      "default",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:                 true,
+				DeleteAt:                now.Add(deleteAfter),
+				AsyncDeleteTaskDuration: deleteAfter,
+				Reason:                  "default",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
 				},
@@ -246,13 +252,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			timeout:  &contextTimeout,
 			given:    &readinessGatePod,
-			want: &podDelayedRemoveSpec{
-				isolate:  true,
-				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
-				sleep:    true,
-				duration: contextTimeout - admissionDelayOverhead,
-				reason:   "no-deny-admission config",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:           true,
+				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
+				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
+				Reason:            "no-deny-admission config",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -266,29 +271,28 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			want:     nil,
 		},
 		{
-			name:     "isolated pod should be delayed, again",
+			name:     "Isolated pod should be delayed, again",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &isolatedPod,
-			want: &podDelayedRemoveSpec{
-				reason: "default",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Reason: "default",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  false,
 					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
 				},
 			},
 		},
 		{
-			name:     "isolated pod should be delayed, again with no-deny",
+			name:     "Isolated pod should be delayed, again with no-deny",
 			existing: []runtime.Object{&normalNode, &tgbIP, &service},
 			config:   []PodGracefulDrainConfig{noDenyConfig},
 			timeout:  &contextTimeout,
 			given:    &isolatedPod,
-			want: &podDelayedRemoveSpec{
-				sleep:    true,
-				duration: contextTimeout - admissionDelayOverhead,
-				reason:   "no-deny-admission config",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
+				Reason:            "no-deny-admission config",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough (reentry)",
 				},
@@ -321,13 +325,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			timeout:  &contextTimeout,
 			given:    &boundPod,
-			want: &podDelayedRemoveSpec{
-				isolate:  true,
-				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
-				sleep:    true,
-				duration: contextTimeout - admissionDelayOverhead,
-				reason:   "node is Unschedulable",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:           true,
+				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
+				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
+				Reason:            "node is Unschedulable",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -339,13 +342,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			timeout:  &contextTimeout,
 			given:    &boundPod,
-			want: &podDelayedRemoveSpec{
-				isolate:  true,
-				deleteAt: now.Add(contextTimeout - admissionDelayOverhead),
-				sleep:    true,
-				duration: contextTimeout - admissionDelayOverhead,
-				reason:   "node has unschedulable taint",
-				admission: InterceptedAdmissionResponse{
+			want: &wantedSpec{
+				Isolate:           true,
+				DeleteAt:          now.Add(contextTimeout - admissionDelayOverhead),
+				SleepTaskDuration: contextTimeout - admissionDelayOverhead,
+				Reason:            "node has unschedulable taint",
+				Admission: InterceptedAdmissionResponse{
 					Allow:  true,
 					Reason: "Pod deletion is delayed enough",
 				},
@@ -374,7 +376,22 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				drain := NewPodGracefulDrain(k8sClient, zap.New(), &config)
 				spec, err := drain.getPodDelayedRemoveSpec(ctx, tt.given.DeepCopy(), now)
 				assert.NilError(t, err)
-				assert.DeepEqual(t, spec, tt.want)
+				var convertedSpec *wantedSpec
+				if spec != nil {
+					convertedSpec = &wantedSpec{
+						Isolate:   spec.isolate,
+						DeleteAt:  spec.deleteAt,
+						Reason:    spec.reason,
+						Admission: spec.admission,
+					}
+					if spec.asyncDeleteTask != nil {
+						convertedSpec.AsyncDeleteTaskDuration = spec.asyncDeleteTask.GetDuration()
+					}
+					if spec.sleepTask != nil {
+						convertedSpec.SleepTaskDuration = spec.sleepTask.GetDuration()
+					}
+				}
+				assert.DeepEqual(t, convertedSpec, tt.want)
 			})
 		}
 	}

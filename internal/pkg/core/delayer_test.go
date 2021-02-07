@@ -39,17 +39,17 @@ func TestDelayedTask_RunAfterWait_ShouldBlock(t *testing.T) {
 	delayer := newDelayer()
 	defer delayer.Stop(duration, duration)
 	probe := make(chan taskProbe, 1)
-	task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+	task := delayer.NewTask(duration, func(ctx context.Context, interrupted bool) error {
 		probe <- newTaskProbe(ctx, interrupted)
 		return nil
 	})
 
-	_ = task.RunAfterWait(context.TODO(), duration)
+	_ = task.RunWait(context.TODO())
 
 	select {
 	case <-probe:
 	default:
-		assert.Assert(t, false, "Task should've ran when RunAfterWait returned")
+		assert.Assert(t, false, "Task should've ran when RunWait returned")
 	}
 }
 
@@ -57,7 +57,7 @@ func TestDelayedTask_RunAfterWait_ShouldCancelledAfterTimeout(t *testing.T) {
 	delayer := newDelayer()
 	defer delayer.Stop(duration, duration)
 	probe := make(chan taskProbe, 1)
-	task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+	task := delayer.NewTask(duration, func(ctx context.Context, interrupted bool) error {
 		probe <- newTaskProbe(ctx, interrupted)
 		return nil
 	})
@@ -65,7 +65,7 @@ func TestDelayedTask_RunAfterWait_ShouldCancelledAfterTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.TODO(), shortDuration)
 	defer cancel()
 	start := time.Now()
-	_ = task.RunAfterWait(ctx, duration)
+	_ = task.RunWait(ctx)
 
 	select {
 	case probeResult := <-probe:
@@ -73,7 +73,7 @@ func TestDelayedTask_RunAfterWait_ShouldCancelledAfterTimeout(t *testing.T) {
 		assert.Equal(t, probeResult.contextErr, context.DeadlineExceeded, "Task should be timed out")
 		assert.Equal(t, start.Sub(probeResult.time) < duration, true, "Task should be started earlier")
 	default:
-		assert.Assert(t, false, "Task should've ran when RunAfterWait returned")
+		assert.Assert(t, false, "Task should've ran when RunWait returned")
 	}
 }
 
@@ -87,13 +87,13 @@ func TestDelayedTask_RunAfterWait_ShouldPassError(t *testing.T) {
 			delayer := newDelayer()
 			defer delayer.Stop(duration, duration)
 			err1 := errors.New("error")
-			task := delayer.NewTask(func(ctx context.Context, _ bool) error {
+			task := delayer.NewTask(time.Duration(0), func(ctx context.Context, _ bool) error {
 				return err1
 			})
 
-			err2 := task.RunAfterWait(context.TODO(), time.Duration(0))
+			err2 := task.RunWait(context.TODO())
 
-			assert.Equal(t, err1, err2, "RunAfterWait should return what task have returned")
+			assert.Equal(t, err1, err2, "RunWait should return what task have returned")
 		})
 	}
 }
@@ -102,17 +102,17 @@ func TestDelayedTask_RunAfterWait_ShouldNotBlock(t *testing.T) {
 	delayer := newDelayer()
 	defer delayer.Stop(duration, duration)
 	probe := make(chan taskProbe, 1)
-	task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+	task := delayer.NewTask(duration, func(ctx context.Context, interrupted bool) error {
 		probe <- newTaskProbe(ctx, interrupted)
 		<-ctx.Done()
 		return nil
 	})
 
-	task.RunAfterAsync(duration)
+	task.RunAsync()
 
 	select {
 	case <-probe:
-		assert.Assert(t, false, "Task shouldn't have ran when RunAfterAsync returned")
+		assert.Assert(t, false, "Task shouldn't have ran when RunAsync returned")
 	default:
 	}
 }
@@ -123,17 +123,17 @@ func TestDelayedTask_NoInterruptDrain_WhenDelayIsShortEnough(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		runner func(task core.DelayedTask, delay time.Duration)
+		runner func(task core.DelayedTask)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.TODO(), delay) }},
-		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
+		{"RunWait", func(task core.DelayedTask) { _ = task.RunWait(context.TODO()) }},
+		{"RunAsync", func(task core.DelayedTask) { task.RunAsync() }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			delayer := newDelayer()
 			probe := make(chan taskProbe, 1)
-			task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+			task := delayer.NewTask(givenDelay, func(ctx context.Context, interrupted bool) error {
 				probe <- newTaskProbe(ctx, interrupted) // probeResult
 				return nil
 			})
@@ -146,7 +146,7 @@ func TestDelayedTask_NoInterruptDrain_WhenDelayIsShortEnough(t *testing.T) {
 			}()
 
 			start := time.Now()
-			tt.runner(task, givenDelay)
+			tt.runner(task)
 
 			stopperStart := <-stopperChan
 			probeResult := <-probe
@@ -170,16 +170,16 @@ func TestDelayedTask_InterruptedDrain_WhenDelayIsTooLong(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		runner func(task core.DelayedTask, delay time.Duration)
+		runner func(task core.DelayedTask)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.Background(), delay) }},
-		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
+		{"RunWait", func(task core.DelayedTask) { _ = task.RunWait(context.Background()) }},
+		{"RunAsync", func(task core.DelayedTask) { task.RunAsync() }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			delayer := newDelayer()
 			probe := make(chan taskProbe, 2)
-			task := delayer.NewTask(func(ctx context.Context, interrupted bool) error {
+			task := delayer.NewTask(givenDelay, func(ctx context.Context, interrupted bool) error {
 				probe <- newTaskProbe(ctx, interrupted) // interrupted
 				<-ctx.Done()
 				probe <- newTaskProbe(ctx, interrupted) // cancelled
@@ -194,7 +194,7 @@ func TestDelayedTask_InterruptedDrain_WhenDelayIsTooLong(t *testing.T) {
 			}()
 
 			start := time.Now()
-			tt.runner(task, givenDelay)
+			tt.runner(task)
 
 			stopperStart := <-stopperChan
 			interrupted := <-probe
@@ -227,14 +227,14 @@ func TestDelayedTask_EmptyStop(t *testing.T) {
 		name   string
 		runner func(task core.DelayedTask, delay time.Duration)
 	}{
-		{"RunAfterWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunAfterWait(context.Background(), delay) }},
-		{"RunAfterAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAfterAsync(delay) }},
+		{"RunWait", func(task core.DelayedTask, delay time.Duration) { _ = task.RunWait(context.Background()) }},
+		{"RunAsync", func(task core.DelayedTask, delay time.Duration) { task.RunAsync() }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			delayer := newDelayer()
-			task := delayer.NewTask(nil)
+			task := delayer.NewTask(givenDelay, nil)
 
 			stopperChan := make(chan time.Time, 2)
 			go func() {
