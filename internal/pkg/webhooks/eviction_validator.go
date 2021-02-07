@@ -70,7 +70,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	}
 
 	logger := v.logger.WithValues("eviction", types.NamespacedName{Namespace: eviction.Namespace, Name: eviction.Name})
-	logger.V(1).Info("Handle pod eviction")
+	logger.Info("Handling pod eviction")
 
 	intercepted, err := v.interceptor.Intercept(ctx, &req, &eviction)
 	if err != nil {
