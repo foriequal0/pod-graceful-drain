@@ -37,14 +37,15 @@ func NewPodGracefulDrain(k8sClient client.Client, logger logr.Logger, config *Po
 
 func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod) (*InterceptedAdmissionResponse, error) {
 	now := time.Now()
+	logger := d.getLoggerFor(pod)
 	spec, err := d.getPodDelayedRemoveSpec(ctx, pod, now)
 	if err != nil || spec == nil {
 		return nil, err
 	}
 
-	d.logSpec(pod, spec)
+	spec.log(logger)
 
-	if err := d.executeSpec(ctx, pod, spec); err != nil {
+	if err := spec.execute(ctx, NewPodMutator(d.client, pod).WithLogger(logger)); err != nil {
 		return nil, err
 	}
 	return &spec.admission, nil
@@ -123,51 +124,48 @@ func getAdmissionDelayTimeout(ctx context.Context, now time.Time) time.Duration 
 	return timeout
 }
 
-func (d *PodGracefulDrain) logSpec(pod *corev1.Pod, spec *podDelayedRemoveSpec) {
+func (s *podDelayedRemoveSpec) log(logger logr.Logger) {
 	details := map[string]interface{}{}
-	if spec.isolate {
+	if s.isolate {
 		details["isolate"] = map[string]interface{}{
-			"deleteAt": spec.deleteAt,
+			"deleteAt": s.deleteAt,
 		}
 	}
-	if spec.asyncDeleteTask != nil {
+	if s.asyncDeleteTask != nil {
 		details["asyncDelete"] = map[string]interface{}{
-			"taskId":   spec.asyncDeleteTask.GetId(),
-			"duration": spec.asyncDeleteTask.GetDuration(),
+			"taskId":   s.asyncDeleteTask.GetId(),
+			"duration": s.asyncDeleteTask.GetDuration(),
 		}
 	}
-	if spec.sleepTask != nil {
+	if s.sleepTask != nil {
 		details["sleep"] = map[string]interface{}{
-			"taskId":   spec.sleepTask.GetId(),
-			"duration": spec.sleepTask.GetDuration(),
+			"taskId":   s.sleepTask.GetId(),
+			"duration": s.sleepTask.GetDuration(),
 		}
 	}
 
-	d.getLoggerFor(pod).Info("delayed pod remove spec",
+	logger.Info("delayed pod remove spec",
 		"details", details,
-		"reason", spec.reason,
-		"admission", spec.admission.Allow)
+		"reason", s.reason,
+		"admission", s.admission.Allow)
 }
 
-func (d *PodGracefulDrain) executeSpec(ctx context.Context, pod *corev1.Pod, spec *podDelayedRemoveSpec) error {
-	m := NewPodMutator(d.client, pod).WithLogger(d.getLoggerFor(pod))
-
-	if spec.isolate {
-		if err := m.Isolate(ctx, spec.deleteAt); err != nil {
+func (s *podDelayedRemoveSpec) execute(ctx context.Context, m *PodMutator) error {
+	if s.isolate {
+		if err := m.Isolate(ctx, s.deleteAt); err != nil {
 			return errors.Wrap(err, "unable to isolate the pod")
 		}
 	}
 
-	if spec.asyncDeleteTask != nil {
-		spec.asyncDeleteTask.RunAsync()
+	if s.asyncDeleteTask != nil {
+		s.asyncDeleteTask.RunAsync()
 	}
 
-	if spec.sleepTask != nil {
-		if err := spec.sleepTask.RunWait(ctx); err != nil {
+	if s.sleepTask != nil {
+		if err := s.sleepTask.RunWait(ctx); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
