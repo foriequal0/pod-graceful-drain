@@ -35,10 +35,10 @@ func NewPodGracefulDrain(k8sClient client.Client, logger logr.Logger, config *Po
 	}
 }
 
-func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod) (*InterceptedAdmissionResponse, error) {
+func (d *PodGracefulDrain) DelayPodDeletion(ctx context.Context, pod *corev1.Pod) (*InterceptedAdmissionResponse, error) {
 	now := time.Now()
 	logger := d.getLoggerFor(pod)
-	spec, err := d.getPodDelayedRemoveSpec(ctx, pod, now)
+	spec, err := d.getDelayedPodDeletionSpec(ctx, pod, now)
 	if err != nil || spec == nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (d *PodGracefulDrain) HandlePodRemove(ctx context.Context, pod *corev1.Pod)
 	return &spec.admission, nil
 }
 
-type podDelayedRemoveSpec struct {
+type delayedPodDeletionSpec struct {
 	isolate         bool
 	deleteAt        time.Time
 	asyncDeleteTask DelayedTask
@@ -60,7 +60,7 @@ type podDelayedRemoveSpec struct {
 	admission       InterceptedAdmissionResponse
 }
 
-func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (spec *podDelayedRemoveSpec, err error) {
+func (d *PodGracefulDrain) getDelayedPodDeletionSpec(ctx context.Context, pod *corev1.Pod, now time.Time) (spec *delayedPodDeletionSpec, err error) {
 	if !IsPodReady(pod) {
 		return nil, nil
 	}
@@ -87,10 +87,10 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to determine whether it can be denied")
 	} else if canDeny {
-		spec = &podDelayedRemoveSpec{
+		spec = &delayedPodDeletionSpec{
 			isolate:         true,
 			deleteAt:        now.Add(d.config.DeleteAfter),
-			asyncDeleteTask: d.getDelayedPodRemoveTask(pod, d.config.DeleteAfter),
+			asyncDeleteTask: d.getDelayedPodDeletionTask(pod, d.config.DeleteAfter),
 			reason:          reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  false,
@@ -99,7 +99,7 @@ func (d *PodGracefulDrain) getPodDelayedRemoveSpec(ctx context.Context, pod *cor
 		}
 	} else {
 		deleteAfter := getAdmissionDelayTimeout(ctx, now)
-		spec = &podDelayedRemoveSpec{
+		spec = &delayedPodDeletionSpec{
 			isolate:   true,
 			deleteAt:  now.Add(deleteAfter),
 			sleepTask: d.getSleepTask(deleteAfter),
@@ -124,7 +124,7 @@ func getAdmissionDelayTimeout(ctx context.Context, now time.Time) time.Duration 
 	return timeout
 }
 
-func (s *podDelayedRemoveSpec) log(logger logr.Logger) {
+func (s *delayedPodDeletionSpec) log(logger logr.Logger) {
 	details := map[string]interface{}{}
 	if s.isolate {
 		details["isolate"] = map[string]interface{}{
@@ -150,7 +150,7 @@ func (s *podDelayedRemoveSpec) log(logger logr.Logger) {
 		"admission", s.admission.Allow)
 }
 
-func (s *podDelayedRemoveSpec) execute(ctx context.Context, m *PodMutator) error {
+func (s *delayedPodDeletionSpec) execute(ctx context.Context, m *PodMutator) error {
 	if s.isolate {
 		if err := m.Isolate(ctx, s.deleteAt); err != nil {
 			return errors.Wrap(err, "unable to isolate the pod")
@@ -176,8 +176,8 @@ func (s *podDelayedRemoveSpec) execute(ctx context.Context, m *PodMutator) error
 //   so ValidatingAdmissionWebhook read the wait label of the old version
 //   => deletePodAfter will retry with back-offs, so we keep denying the admission.
 // * Users and controllers manually tries to delete the pod before deleteAt.
-//   => User can see the admission report message. Controller should getPodDelayedRemoveSpec admission failures.
-func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *podDelayedRemoveSpec, err error) {
+//   => User can see the admission report message. Controller should getDelayedPodDeletionSpec admission failures.
+func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, info PodDeletionDelayInfo, now time.Time) (spec *delayedPodDeletionSpec, err error) {
 	remainingTime := info.GetRemainingTime(now)
 	if remainingTime == time.Duration(0) {
 		return nil, nil
@@ -187,7 +187,7 @@ func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, 
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether it should be denied")
 	} else if canDeny {
-		spec = &podDelayedRemoveSpec{
+		spec = &delayedPodDeletionSpec{
 			reason: reason,
 			admission: InterceptedAdmissionResponse{
 				Allow:  false,
@@ -200,7 +200,7 @@ func (d *PodGracefulDrain) getReentrySpec(ctx context.Context, pod *corev1.Pod, 
 			remainingTime = timeout
 		}
 		// All admissions should be delayed. Pods will be deleted if any of admissions is finished.
-		spec = &podDelayedRemoveSpec{
+		spec = &delayedPodDeletionSpec{
 			sleepTask: d.getSleepTask(remainingTime),
 			reason:    reason,
 			admission: InterceptedAdmissionResponse{
@@ -269,7 +269,7 @@ func (d *PodGracefulDrain) cleanupPreviousRun(ctx context.Context) error {
 			deleteAfter = delayInfo.GetRemainingTime(now)
 		}
 
-		d.getDelayedPodRemoveTask(pod, deleteAfter).RunAsync()
+		d.getDelayedPodDeletionTask(pod, deleteAfter).RunAsync()
 	}
 	return nil
 }
@@ -283,7 +283,7 @@ func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
 	return d.logger.WithValues("pod", podName.String())
 }
 
-func (d *PodGracefulDrain) getDelayedPodRemoveTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
+func (d *PodGracefulDrain) getDelayedPodDeletionTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
 	return d.delayer.NewTask(duration, func(ctx context.Context, _ bool) error {
 		return NewPodMutator(d.client, pod).
 			WithLogger(logr.FromContextOrDiscard(ctx)).

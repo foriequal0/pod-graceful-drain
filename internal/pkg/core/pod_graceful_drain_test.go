@@ -30,10 +30,7 @@ var (
 	}
 )
 
-// tgb, readinessgate, node status
-//
-
-func TestPodDelayedRemoveSpec(t *testing.T) {
+func TestDelayedPodDeletionSpec(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	deleteAt := now.UTC().Add(deleteAfter).Format(time.RFC3339)
 
@@ -374,7 +371,7 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				k8sClient := builder.WithRuntimeObjects(tt.given).Build()
 
 				drain := NewPodGracefulDrain(k8sClient, zap.New(), &config)
-				spec, err := drain.getPodDelayedRemoveSpec(ctx, tt.given.DeepCopy(), now)
+				spec, err := drain.getDelayedPodDeletionSpec(ctx, tt.given.DeepCopy(), now)
 				assert.NilError(t, err)
 				var convertedSpec *wantedSpec
 				if spec != nil {

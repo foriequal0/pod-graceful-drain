@@ -27,7 +27,7 @@ func (i *Interceptor) InterceptPodDeletion(ctx context.Context, req *admission.R
 		return &InterceptedAdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
 
-	interceptedResponse, err := i.drain.HandlePodRemove(ctx, pod)
+	interceptedResponse, err := i.drain.DelayPodDeletion(ctx, pod)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (i *Interceptor) InterceptPodEviction(ctx context.Context, req *admission.R
 		return nil, errors.Wrapf(err, "unable to get the pod")
 	}
 
-	interceptedResponse, err := i.drain.HandlePodRemove(ctx, pod)
+	interceptedResponse, err := i.drain.DelayPodDeletion(ctx, pod)
 	if err != nil {
 		return nil, err
 	}
