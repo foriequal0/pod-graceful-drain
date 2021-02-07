@@ -17,7 +17,6 @@ package webhooks
 import (
 	"context"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
-	"github.com/foriequal0/pod-graceful-drain/internal/pkg/interceptors"
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
@@ -29,7 +28,7 @@ import (
 
 type PodValidator struct {
 	logger      logr.Logger
-	interceptor interceptors.PodDeletionInterceptor
+	interceptor *core.Interceptor
 	config      *core.PodGracefulDrainConfig
 
 	decoder *admission.Decoder
@@ -38,7 +37,7 @@ type PodValidator struct {
 var _ admission.DecoderInjector = &PodValidator{}
 var _ admission.Handler = &PodValidator{}
 
-func NewPodValidator(interceptor interceptors.PodDeletionInterceptor, logger logr.Logger, config *core.PodGracefulDrainConfig) PodValidator {
+func NewPodValidator(interceptor *core.Interceptor, logger logr.Logger, config *core.PodGracefulDrainConfig) PodValidator {
 	return PodValidator{
 		interceptor: interceptor,
 		logger:      logger.WithName("pod-validation-webhook"),
@@ -72,7 +71,7 @@ func (v *PodValidator) handleDelete(ctx context.Context, req admission.Request) 
 	logger := v.logger.WithValues("pod", types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name})
 	logger.Info("Handling pod deletion")
 
-	intercepted, err := v.interceptor.Intercept(ctx, &req, &pod)
+	intercepted, err := v.interceptor.InterceptPodDeletion(ctx, &req, &pod)
 	if err != nil {
 		logger.Error(err, "errored while intercepting pod deletion")
 		if v.config.IgnoreError {

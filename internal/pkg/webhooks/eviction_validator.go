@@ -17,7 +17,6 @@ package webhooks
 import (
 	"context"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
-	"github.com/foriequal0/pod-graceful-drain/internal/pkg/interceptors"
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/api/policy/v1beta1"
@@ -28,7 +27,7 @@ import (
 )
 
 type EvictionValidator struct {
-	interceptor interceptors.PodEvictionInterceptor
+	interceptor *core.Interceptor
 	logger      logr.Logger
 	config      *core.PodGracefulDrainConfig
 
@@ -38,7 +37,7 @@ type EvictionValidator struct {
 var _ admission.DecoderInjector = &PodValidator{}
 var _ admission.Handler = &PodValidator{}
 
-func NewEvictionValidator(interceptor interceptors.PodEvictionInterceptor, logger logr.Logger, config *core.PodGracefulDrainConfig) EvictionValidator {
+func NewEvictionValidator(interceptor *core.Interceptor, logger logr.Logger, config *core.PodGracefulDrainConfig) EvictionValidator {
 	return EvictionValidator{
 		interceptor: interceptor,
 		logger:      logger.WithName("pod-eviction-validation-webhook"),
@@ -72,7 +71,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	logger := v.logger.WithValues("eviction", types.NamespacedName{Namespace: eviction.Namespace, Name: eviction.Name})
 	logger.Info("Handling pod eviction")
 
-	intercepted, err := v.interceptor.Intercept(ctx, &req, &eviction)
+	intercepted, err := v.interceptor.InterceptPodEviction(ctx, &req, &eviction)
 	if err != nil {
 		logger.Error(err, "errored while intercepting pod eviction")
 		if v.config.IgnoreError {

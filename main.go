@@ -20,7 +20,6 @@ import (
 	"flag"
 	"github.com/foriequal0/pod-graceful-drain/internal"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
-	"github.com/foriequal0/pod-graceful-drain/internal/pkg/interceptors"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/webhooks"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -83,16 +82,15 @@ func main() {
 		setupLog.Error(err, "unable to setup pod-graceful-drain")
 		os.Exit(1)
 	}
+	interceptor := core.NewInterceptor(&drain, mgr.GetClient())
 
-	podDeletionInterceptor := interceptors.NewPodDeletionInterceptor(&drain)
-	podValidationWebhook := webhooks.NewPodValidator(podDeletionInterceptor, ctrl.Log, &cfg.PodGracefulDrain)
+	podValidationWebhook := webhooks.NewPodValidator(&interceptor, ctrl.Log, &cfg.PodGracefulDrain)
 	if err := podValidationWebhook.SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "pod-validation-webhook")
 		os.Exit(1)
 	}
 
-	podEvictionInterceptor := interceptors.NewPodEvictionInterceptor(&drain, mgr.GetClient())
-	evictionValidationWebhook := webhooks.NewEvictionValidator(podEvictionInterceptor, ctrl.Log, &cfg.PodGracefulDrain)
+	evictionValidationWebhook := webhooks.NewEvictionValidator(&interceptor, ctrl.Log, &cfg.PodGracefulDrain)
 	if err := evictionValidationWebhook.SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "pod-eviction-validation-webhook")
 		os.Exit(1)
