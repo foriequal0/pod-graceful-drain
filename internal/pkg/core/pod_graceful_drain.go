@@ -274,13 +274,13 @@ func (d *PodGracefulDrain) cleanupPreviousRun(ctx context.Context) error {
 	return nil
 }
 
-func (d *PodGracefulDrain) getLoggerFor(pod *corev1.Pod) logr.Logger {
-	podName := types.NamespacedName{
-		Namespace: pod.Namespace,
-		Name:      pod.Name,
+func (d *PodGracefulDrain) getLoggerFor(obj client.Object) logr.Logger {
+	namespacedName := types.NamespacedName{
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
 	}
 
-	return d.logger.WithValues("pod", podName.String())
+	return d.logger.WithValues(obj.GetObjectKind().GroupVersionKind().Kind, namespacedName.String())
 }
 
 func (d *PodGracefulDrain) getDelayedPodDeletionTask(pod *corev1.Pod, duration time.Duration) DelayedTask {
