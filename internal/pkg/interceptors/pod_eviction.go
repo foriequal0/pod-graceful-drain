@@ -25,9 +25,9 @@ func NewPodEvictionInterceptor(drain *core.PodGracefulDrain, k8sClient client.Cl
 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
-func (i *PodEvictionInterceptor) Intercept(ctx context.Context, req *admission.Request, eviction *v1beta1.Eviction) (core.InterceptedAdmissionHandler, error) {
+func (i *PodEvictionInterceptor) Intercept(ctx context.Context, req *admission.Request, eviction *v1beta1.Eviction) (*core.InterceptedAdmissionResponse, error) {
 	if req.DryRun != nil && *req.DryRun == true {
-		return core.DryRunHandler{}, nil
+		return &core.InterceptedAdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
 
 	podKey := types.NamespacedName{
@@ -39,9 +39,9 @@ func (i *PodEvictionInterceptor) Intercept(ctx context.Context, req *admission.R
 		return nil, errors.Wrapf(err, "unable to get the pod")
 	}
 
-	interceptedHandler, err := i.drain.HandlePodRemove(ctx, pod)
+	interceptedResponse, err := i.drain.HandlePodRemove(ctx, pod)
 	if err != nil {
 		return nil, err
 	}
-	return interceptedHandler, nil
+	return interceptedResponse, nil
 }

@@ -199,6 +199,10 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				asyncDelete: true,
 				duration:    deleteAfter,
 				reason:      "default",
+				admission: InterceptedAdmissionResponse{
+					Allow:  false,
+					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
+				},
 			},
 		}, {
 			name:     "bound pod should be delayed with no-deny",
@@ -207,10 +211,13 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				asyncDelete: false,
-				duration:    contextTimeout - admissionDelayOverhead,
-				reason:      "no-deny-admission config",
+				isolate:  true,
+				duration: contextTimeout - admissionDelayOverhead,
+				reason:   "no-deny-admission config",
+				admission: InterceptedAdmissionResponse{
+					Allow:  true,
+					Reason: "Pod deletion is delayed enough",
+				},
 			},
 		},
 		{
@@ -223,6 +230,10 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 				asyncDelete: true,
 				duration:    deleteAfter,
 				reason:      "default",
+				admission: InterceptedAdmissionResponse{
+					Allow:  false,
+					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start",
+				},
 			},
 		},
 		{
@@ -232,10 +243,13 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &readinessGatePod,
 			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				asyncDelete: false,
-				duration:    contextTimeout - admissionDelayOverhead,
-				reason:      "no-deny-admission config",
+				isolate:  true,
+				duration: contextTimeout - admissionDelayOverhead,
+				reason:   "no-deny-admission config",
+				admission: InterceptedAdmissionResponse{
+					Allow:  true,
+					Reason: "Pod deletion is delayed enough",
+				},
 			},
 		},
 		{
@@ -251,9 +265,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			config:   []PodGracefulDrainConfig{defaultConfig},
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
-				isolate:     false,
 				asyncDelete: true,
-				reason:      "default",
+				reason: "default",
+				admission: InterceptedAdmissionResponse{
+					Allow:  false,
+					Reason: "Pod cannot be removed immediately. It will be eventually removed after waiting for the load balancer to start (reentry)",
+				},
 			},
 		},
 		{
@@ -263,10 +280,12 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &isolatedPod,
 			want: &podDelayedRemoveSpec{
-				isolate:     false,
-				asyncDelete: false,
-				duration:    contextTimeout - admissionDelayOverhead,
-				reason:      "no-deny-admission config",
+				duration: contextTimeout - admissionDelayOverhead,
+				reason:   "no-deny-admission config",
+				admission: InterceptedAdmissionResponse{
+					Allow:  true,
+					Reason: "Pod deletion is delayed enough (reentry)",
+				},
 			},
 		},
 		{
@@ -297,10 +316,13 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				asyncDelete: false,
-				duration:    contextTimeout - admissionDelayOverhead,
-				reason:      "node is Unschedulable",
+				isolate:  true,
+				duration: contextTimeout - admissionDelayOverhead,
+				reason:   "node is Unschedulable",
+				admission: InterceptedAdmissionResponse{
+					Allow:  true,
+					Reason: "Pod deletion is delayed enough",
+				},
 			},
 		},
 		{
@@ -310,10 +332,13 @@ func TestPodDelayedRemoveSpec(t *testing.T) {
 			timeout:  &contextTimeout,
 			given:    &boundPod,
 			want: &podDelayedRemoveSpec{
-				isolate:     true,
-				asyncDelete: false,
-				duration:    contextTimeout - admissionDelayOverhead,
-				reason:      "node has unschedulable taint",
+				isolate:  true,
+				duration: contextTimeout - admissionDelayOverhead,
+				reason:   "node has unschedulable taint",
+				admission: InterceptedAdmissionResponse{
+					Allow:  true,
+					Reason: "Pod deletion is delayed enough",
+				},
 			},
 		},
 	}
