@@ -29,7 +29,7 @@ jobs:
 
         tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:$GIT_VERSION
 
-        LATEST_TAG="$(git describe --tags --abbrev=0)"
+        LATEST_TAG="$(git describe --tags --dirty --always --abbrev=0)"
         if git diff --quiet "$LATEST_TAG"; then
           tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:latest
         fi
