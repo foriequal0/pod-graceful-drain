@@ -135,13 +135,13 @@ func (s *delayedPodDeletionSpec) log(logger logr.Logger) {
 	if s.asyncDeleteTask != nil {
 		details["asyncDelete"] = map[string]interface{}{
 			"taskId":   s.asyncDeleteTask.GetId(),
-			"duration": s.asyncDeleteTask.GetDuration(),
+			"duration": s.asyncDeleteTask.GetDuration().Seconds(),
 		}
 	}
 	if s.sleepTask != nil {
 		details["sleep"] = map[string]interface{}{
 			"taskId":   s.sleepTask.GetId(),
-			"duration": s.sleepTask.GetDuration(),
+			"duration": s.sleepTask.GetDuration().Seconds(),
 		}
 	}
 
@@ -307,7 +307,7 @@ func (s *delayedPodEvictionSpec) log(logger logr.Logger) {
 	if s.asyncDeleteTask != nil {
 		details["asyncDelete"] = map[string]interface{}{
 			"taskId":   s.asyncDeleteTask.GetId(),
-			"duration": s.asyncDeleteTask.GetDuration(),
+			"duration": s.asyncDeleteTask.GetDuration().Seconds(),
 		}
 	}
 

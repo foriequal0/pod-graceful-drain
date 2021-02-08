@@ -53,7 +53,7 @@ func (m *PodMutator) DisableWaitLabelAndDelete(ctx context.Context) error {
 	if err := m.disableWaitLabel(ctx); err != nil {
 		return err
 	}
-	m.logger.Info("disabled wait label")
+	m.logger.V(1).Info("disabled wait label")
 
 	m.logger.Info("deleting")
 	if err := m.delete(ctx); err != nil {
