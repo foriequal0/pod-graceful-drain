@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   pod-graceful-drain:
   - apiVersion: v2
+    appVersion: v0.0.7
+    created: "2021-02-08T04:54:17.872471875Z"
+    description: |
+      You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
+    digest: 14b3c50ff8cdb02981d1c179ebb8ce16eb7cf42e1033cda07ea1a60002cb333e
+    name: pod-graceful-drain
+    type: application
+    urls:
+    - https://foriequal0.github.io/pod-graceful-drain/pod-graceful-drain-0.0.7.tgz
+    version: 0.0.7
+  - apiVersion: v2
     appVersion: v0.0.6
-    created: "2021-02-05T09:17:33.286882774Z"
+    created: "2021-02-08T04:54:17.871888275Z"
     description: |
       You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
     digest: 671c829fbce507b575e56f86e51059dd13eabd5f3f56fab21b8248c5ed33fd1c
@@ -14,7 +25,7 @@ entries:
     version: 0.0.6
   - apiVersion: v2
     appVersion: v0.0.6
-    created: "2021-02-05T09:17:33.286438177Z"
+    created: "2021-02-08T04:54:17.871225975Z"
     description: |
       You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
     digest: 823e6040ac85ecb92c16e26d602e9d956dd030a0bbdb4ebf9ffcd741cd8c3dab
@@ -23,4 +34,4 @@ entries:
     urls:
     - https://foriequal0.github.io/pod-graceful-drain/pod-graceful-drain-0.0.5.tgz
     version: 0.0.5
-generated: "2021-02-05T09:17:33.285844681Z"
+generated: "2021-02-08T04:54:17.870150476Z"
