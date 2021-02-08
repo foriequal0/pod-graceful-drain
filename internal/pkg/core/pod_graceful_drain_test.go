@@ -567,7 +567,7 @@ func TestDelayedPodEvictionSpec(t *testing.T) {
 			name:     "Isolated pod should be delayed, again",
 			existing: []runtime.Object{&node, &tgbIP, &service},
 			given:    &isolatedPod,
-			want: &wantedSpec{},
+			want:     &wantedSpec{},
 		},
 		{
 			name:     "not ready pod should be deleted immediately",
@@ -612,8 +612,8 @@ func TestDelayedPodEvictionSpec(t *testing.T) {
 			var convertedSpec *wantedSpec
 			if spec != nil {
 				convertedSpec = &wantedSpec{
-					Isolate:   spec.isolate,
-					DeleteAt:  spec.deleteAt,
+					Isolate:  spec.isolate,
+					DeleteAt: spec.deleteAt,
 				}
 				if spec.asyncDeleteTask != nil {
 					convertedSpec.AsyncDeleteTaskDuration = spec.asyncDeleteTask.GetDuration()
