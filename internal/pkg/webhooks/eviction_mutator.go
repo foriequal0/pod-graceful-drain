@@ -91,7 +91,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 // +kubebuilder:webhook:admissionReviewVersions=v1,webhookVersions=v1,verbs=create,path=/mutate-core-v1-pod-eviction,mutating=true,failurePolicy=ignore,sideEffects=noneOnDryRun,groups="",resources=pods/eviction,versions=v1,name=mpodseviction.pod-graceful-drain.io
 
 func (v *EvictionValidator) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	mgr.GetWebhookServer().Register("/validate-core-v1-pod-eviction", &admission.Webhook{
+	mgr.GetWebhookServer().Register("/mutate-core-v1-pod-eviction", &admission.Webhook{
 		Handler:         v,
 		WithContextFunc: NewContextFromRequest,
 	})
