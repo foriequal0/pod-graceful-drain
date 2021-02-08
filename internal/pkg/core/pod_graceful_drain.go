@@ -220,6 +220,8 @@ func (d *PodGracefulDrain) canDenyAdmission(ctx context.Context, pod *corev1.Pod
 		return false, "no-deny-admission config", nil
 	}
 
+	// `kubectl drain` will fail and stop if it meets the first pod that cannot be deleted.
+	// It'll cordon a node before draining, so we detect it, and try not to deny the admission.
 	draining, err := IsPodInDrainingNode(ctx, d.client, pod)
 	if err != nil {
 		return false, "", nil

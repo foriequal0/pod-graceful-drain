@@ -78,9 +78,6 @@ func IsPodInDrainingNode(ctx context.Context, client client.Client, pod *corev1.
 		return false, errors.Wrapf(err, "cannot get node %v", nodeName)
 	}
 
-	// Node is about to be drained.
-	// `kubectl drain` will fail and stop if it meets the first pod that cannot be deleted.
-	// It'll cordon a node before draining, so we detect it, and try not to deny the admission.
 	if node.Spec.Unschedulable {
 		return true, nil
 	}
