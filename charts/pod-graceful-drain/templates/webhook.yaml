@@ -62,7 +62,6 @@ webhooks:
         operations: [CREATE]
         resources: [pods/eviction]
     sideEffects: NoneOnDryRun
-    timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
     {{- with .Values.namespaceSelector }}
     namespaceSelector:
       {{- toYaml . | nindent 6 }}
