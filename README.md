@@ -40,10 +40,16 @@ It might be needed to apply mistake-prone patches to some chart distributions.
 And it is ugly. It doesn't seem to be solved in a foreseeable future, and related issues are getting closed due to the inactivity by the bots.
 
 `pod-graceful-drain` solves this by abusing [admission webhooks][admission-webhook].
-It intercepts the deletion/eviction of a pod and deny them or delay the admission response to prevent the pod from getting terminated.
-While doing so, it patches the pod to isolate it from the subsystems without terminating it.
-By removing labels, endpoints remove the pod from their list, and load balancers deregister them.
-The traffics are drained safely since the pod is still alive and can serve misdirected new traffics during the delay.
-After that, the pod is removed asynchronously by it or continuing the delayed admission response.
+It intercepts the deletion/eviction of a pod deletion/eviction process to prevent the pod from getting terminated for a period.
+It'll take appropriate methods to delay the pod deletion: deny the admission, response the admission very slowly, mutate the eviction request to dry-run, etc.
+Then the pod will be eventually terminated by the controller after designated timeouts.
+With this delay, traffics are drained safely since the pod is still alive and can serve misdirected new traffics.
+
+[admission-webhook]: https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers
+
+Another goal of it is making sure it won't affect common tasks such as deployment rollout, or `kubectl drain`.
+By removing labels, which isolates the pod from the replicasets, rollout process will continue as the pod was terminated, without actually terminating it.
+It modifies the requested `pods/eviction`, which usually made during the `kubectl drin`, to be dry-run, then it isolates and eventually terminates the pod.
 
 I find that this is more 'graceful' than the brutal `sleep`. It can still feel like ad-hoc, and hacky, but the duct tapes are okay if they are hidden in the wall (until they leak).
+
