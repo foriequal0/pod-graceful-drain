@@ -11,7 +11,7 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
-  - admissionReviewVersions: [v1]
+  - admissionReviewVersions: [v1beta1, v1]
     clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
@@ -20,7 +20,7 @@ webhooks:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
         path: /validate-core-v1-pod
-    failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
+    failurePolicy: {{ if .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
     name: vpod.pod-graceful-drain.io
     rules:
       - apiGroups: [""]
@@ -45,7 +45,7 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
-  - admissionReviewVersions: [v1]
+  - admissionReviewVersions: [v1beta1, v1]
     clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
@@ -54,7 +54,7 @@ webhooks:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
         path: /mutate-core-v1-pod-eviction
-    failurePolicy: {{ if not .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
+    failurePolicy: {{ if .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
     name: mpodseviction.pod-graceful-drain.io
     rules:
       - apiGroups: [""]
