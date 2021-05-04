@@ -5,7 +5,7 @@ kind: ValidatingWebhookConfiguration
 metadata:
   {{- if .Values.enableCertManager }}
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.namePrefix" . }}-serving-cert
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.name" . }}-serving-cert
   {{- end }}
   name: {{ include "pod-graceful-drain.fullname" . }}-webhook
   labels:
@@ -39,7 +39,7 @@ kind: MutatingWebhookConfiguration
 metadata:
   {{- if .Values.enableCertManager }}
   annotations:
-    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.namePrefix" . }}-serving-cert
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ template "pod-graceful-drain.name" . }}-serving-cert
   {{- end }}
   name: {{ include "pod-graceful-drain.fullname" . }}-webhook
   labels:
