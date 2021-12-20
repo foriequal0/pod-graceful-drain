@@ -5,7 +5,6 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	kubepod "k8s.io/kubernetes/pkg/api/v1/pod"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
@@ -18,16 +17,35 @@ const (
 )
 
 func IsPodReady(pod *corev1.Pod) bool {
-	if !kubepod.IsPodReady(pod) {
+	err, condition := getPodCondition(&pod.Status, corev1.PodReady)
+	if err == -1 || condition.Status != corev1.ConditionTrue {
 		return false
 	}
+
 	for _, rg := range pod.Spec.ReadinessGates {
-		_, condition := kubepod.GetPodCondition(&pod.Status, rg.ConditionType)
+		_, condition := getPodCondition(&pod.Status, rg.ConditionType)
 		if condition == nil || condition.Status != corev1.ConditionTrue {
 			return false
 		}
 	}
 	return true
+}
+
+func getPodCondition(status *corev1.PodStatus, conditionType corev1.PodConditionType) (int, *corev1.PodCondition) {
+	if status == nil {
+		return -1, nil
+	}
+
+	if status.Conditions == nil {
+		return -1, nil
+	}
+
+	for i := range status.Conditions {
+		if status.Conditions[i].Type == conditionType {
+			return i, &status.Conditions[i]
+		}
+	}
+	return -1, nil
 }
 
 type PodDeletionDelayInfo struct {

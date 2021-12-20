@@ -8,9 +8,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	elbv2api "sigs.k8s.io/aws-load-balancer-controller/apis/elbv2/v1beta1"
-	"sigs.k8s.io/aws-load-balancer-controller/pkg/targetgroupbinding"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+)
+
+const (
+	// Prefix for TargetHealth pod condition type.
+	TargetHealthPodConditionTypePrefix = "target-health.elbv2.k8s.aws"
 )
 
 // +kubebuilder:rbac:groups=elbv2.k8s.aws,resources=targetgroupbindings,verbs=list;watch
@@ -24,7 +28,7 @@ func DidPodHaveServicesTargetTypeIP(ctx context.Context, client client.Client, p
 
 	if len(svcs) == 0 {
 		for _, item := range pod.Spec.ReadinessGates {
-			if strings.HasPrefix(string(item.ConditionType), targetgroupbinding.TargetHealthPodConditionTypePrefix) {
+			if strings.HasPrefix(string(item.ConditionType), TargetHealthPodConditionTypePrefix) {
 				// The pod once had TargetGroupBindings, but it is somehow gone.
 				// We don't know whether its TargetType is IP, it's target group, etc.
 				// It might be worth to to give some time to ELB.
