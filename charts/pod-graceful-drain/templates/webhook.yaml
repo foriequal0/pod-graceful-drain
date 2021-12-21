@@ -82,7 +82,7 @@ data:
   tls.key: {{ $tls.clientKey }}
 {{- else }}
 ---
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ template "pod-graceful-drain.fullname" . }}-serving-cert
@@ -98,7 +98,7 @@ spec:
     name: {{ template "pod-graceful-drain.fullname" . }}-selfsigned-issuer
   secretName: {{ template "pod-graceful-drain.fullname" . }}-cert
 ---
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ template "pod-graceful-drain.fullname" . }}-selfsigned-issuer
