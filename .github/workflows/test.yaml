@@ -39,5 +39,5 @@ jobs:
       - uses: actions/checkout@v2
       - uses: helm/kind-action@v1.1.0
       - name: Install certmanager
-        run: kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.1.0/cert-manager.yaml
+        run: kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml
       - run: make deploy
