@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: ^1.15
+          go-version: ^1.17
       - run: make test manifests docker-build
       - name: Manifests are up to date
         run: git diff --exit-code -- config/
@@ -37,6 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ^1.17
       - uses: helm/kind-action@v1.2.0
       - name: Install certmanager
         run: kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.6.1/cert-manager.yaml

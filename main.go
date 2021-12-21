@@ -119,7 +119,7 @@ func createLogger(logLevel string) (logr.Logger, error) {
 	case "debug":
 		zapcoreLevel = zapcore.DebugLevel
 	default:
-		return nil, errors.New("Invalid log level")
+		return logr.Logger{}, errors.New("Invalid log level")
 	}
 
 	logger := zap.New(zap.UseDevMode(false),
