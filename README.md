@@ -49,7 +49,7 @@ With this delay, traffics are drained safely since the pod is still alive and ca
 
 Another goal of it is making sure it won't affect common tasks such as deployment rollout, or `kubectl drain`.
 By removing labels, which isolates the pod from the replicasets, rollout process will continue as the pod was terminated, without actually terminating it.
-It modifies the requested `pods/eviction`, which usually made during the `kubectl drin`, to be dry-run, then it isolates and eventually terminates the pod.
+It modifies the requested `pods/eviction`, which usually made during the `kubectl drain`, to be dry-run, then it isolates and eventually terminates the pod.
 
 I find that this is more 'graceful' than the brutal `sleep`. It can still feel like ad-hoc, and hacky, but the duct tapes are okay if they are hidden in the wall (until they leak).
 
