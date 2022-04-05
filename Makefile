@@ -71,7 +71,7 @@ docker-push:
 controller-gen:
 ifeq (, $(shell which controller-gen))
 	@{ \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0 ;\
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 ;\
 	}
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else

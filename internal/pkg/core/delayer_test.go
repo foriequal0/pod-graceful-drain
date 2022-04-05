@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
 	"time"
