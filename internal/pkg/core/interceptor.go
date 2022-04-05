@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 	corev1 "k8s.io/api/core/v1"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -32,7 +32,7 @@ func (i *Interceptor) InterceptPodDeletion(ctx context.Context, req *admission.R
 	return interceptedResponse, nil
 }
 
-func (i *Interceptor) InterceptPodEviction(ctx context.Context, req *admission.Request, eviction *policyv1beta1.Eviction) (InterceptedAdmissionResponse, error) {
+func (i *Interceptor) InterceptPodEviction(ctx context.Context, req *admission.Request, eviction *policyv1.Eviction) (InterceptedAdmissionResponse, error) {
 	if req.DryRun != nil && *req.DryRun == true {
 		return AdmissionResponse{Allow: true, Reason: "dry-run"}, nil
 	}
