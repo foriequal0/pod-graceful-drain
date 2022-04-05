@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"github.com/pkg/errors"
 	"gomodules.xyz/jsonpatch/v2"
-	"k8s.io/api/policy/v1beta1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -29,7 +29,7 @@ type EvictionResponse struct {
 	Operations []jsonpatch.Operation
 }
 
-func NewEvictionResponse(eviction *v1beta1.Eviction) (EvictionResponse, error) {
+func NewEvictionResponse(eviction *policyv1beta1.Eviction) (EvictionResponse, error) {
 	oldJson, err := json.Marshal(eviction)
 	if err != nil {
 		return EvictionResponse{}, errors.Wrap(err, "unable to marshal old eviction")

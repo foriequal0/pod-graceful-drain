@@ -5,7 +5,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/policy/v1beta1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -233,7 +233,7 @@ func (d *PodGracefulDrain) canDenyAdmission(ctx context.Context, pod *corev1.Pod
 
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 
-func (d *PodGracefulDrain) DelayPodEviction(ctx context.Context, eviction *v1beta1.Eviction) (bool, error) {
+func (d *PodGracefulDrain) DelayPodEviction(ctx context.Context, eviction *policyv1beta1.Eviction) (bool, error) {
 	now := time.Now()
 	logger := d.getLoggerFor(eviction)
 
