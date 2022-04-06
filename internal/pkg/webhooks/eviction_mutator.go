@@ -19,7 +19,7 @@ import (
 	"github.com/foriequal0/pod-graceful-drain/internal/pkg/core"
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
-	"k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"net/http"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -63,7 +63,7 @@ func (v *EvictionValidator) handleCreate(ctx context.Context, req admission.Requ
 	ctx, cancel := context.WithTimeout(ctx, TimeoutFromContext(ctx))
 	defer cancel()
 
-	eviction := v1beta1.Eviction{}
+	eviction := policyv1.Eviction{}
 	if err := v.decoder.DecodeRaw(req.Object, &eviction); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
