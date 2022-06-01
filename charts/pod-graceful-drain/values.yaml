@@ -25,8 +25,7 @@ serviceAccount:
 
 podAnnotations: {}
 
-podLabels: #{}
-  werer: "243423432"
+podLabels: {}
 
 podSecurityContext: {}
   # fsGroup: 2000
