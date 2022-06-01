@@ -17,6 +17,9 @@ spec:
       {{- end }}
       labels:
         {{- include "pod-graceful-drain.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{ toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
