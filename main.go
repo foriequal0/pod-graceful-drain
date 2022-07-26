@@ -107,7 +107,7 @@ func parseConfig() (internal.Config, error) {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	cfg := internal.Config{}
 	cfg.BindFlags(fs)
-	err := fs.Parse(os.Args)
+	err := fs.Parse(os.Args[1:])
 	return cfg, err
 }
 
