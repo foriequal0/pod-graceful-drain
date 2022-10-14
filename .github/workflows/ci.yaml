@@ -1,0 +1,67 @@
+name: "CI"
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    timeout-minutes: 3
+    name: cargo build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: clippy
+      - run: cargo fetch --verbose
+      - run: cargo build --all-features
+
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        kind_image:
+          - "v1.30.2"
+          - "v1.29.4"
+          - "v1.28.9"
+          - "v1.27.13"
+          - "v1.26.15"
+          - "v1.25.16"
+          - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Setup kind
+        run: |
+          kind create cluster --image="$KIND_IMAGE" --name test-pgd
+      - run: cargo fetch --verbose
+      - run: cargo test --all-features
+        timeout-minutes: 5
+
+  lint:
+    timeout-minutes: 3
+    name: cargo fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - id: rustfmt
+        name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
+        continue-on-error: true
+      - run: cargo fetch --verbose
+      - id: clippy
+        run: cargo clippy --all-features
+        continue-on-error: true
+      - name: Test success
+        if: steps.rustfmt.outcome != 'success' || steps.clippy.outcome != 'success'
+        run: "false"

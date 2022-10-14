@@ -1,0 +1,60 @@
+[package]
+name = "pod-graceful-drain"
+description = "You don't need `lifecycle: { preStop: { exec: { command: [\"sleep\", \"30\"] } } }`"
+authors = ["SeongChan Lee <foriequal@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.79"
+
+[dependencies]
+# kubernetes libs
+kube = { version = "0.93.1", features = ["runtime", "admission"] }
+k8s-openapi = { version = "0.22.0", features = ["v1_30"] }
+
+# async runtime libs
+tokio = "1.39.2"
+futures = "0.3.30"
+
+# webhook libs
+axum = "0.7.5"
+axum-server = { version = "0.7.1", features = ["tls-rustls-no-provider"] }
+tower = "0.4.13"
+rustls = { version = "0.23.12", default-features = false, features = ["ring"] }
+rustls-pemfile = "2.1.2"
+
+# observability libs
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-error = "0.2.0"
+eyre = "0.6.12"
+color-eyre = { version = "0.6.3", features = ["capture-spantrace"] }
+thiserror = "1.0.63"
+
+# auxilary libs
+clap = { version = "4.5.14", features = ["derive"] }
+genawaiter = { git = "https://github.com/foriequal0/genawaiter", features = ["futures03"] }
+humantime = "2.1.0"
+async-shutdown = "0.2.2"
+serde = "1.0.205"
+serde_json = "1.0.122"
+json-patch = "2.0.0"
+jsonptr = "0.4.7" # json-patch uses 0.4.x
+either = "1.13.0"
+chrono = "0.4.38"
+backoff = "0.4.0"
+rand = "0.8.5"
+notify = "6.1.1"
+debounced = "0.1.0"
+hostname = "0.4.0"
+uuid = { version = "1.10.0", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.12.0"
+serde_yaml = "0.9.34-deprecated"
+local-ip-address = "0.6.1"
+base64 = "0.22.1"
+rcgen = "0.13.1"
+
+[build-dependencies]
+anyhow = "1.0.86"
+vergen-gitcl = { version = "1.0.0", features = ["build", "rustc"] }

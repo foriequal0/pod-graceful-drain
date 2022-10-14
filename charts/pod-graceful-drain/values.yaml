@@ -10,7 +10,7 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
-imagePullSecrets: []
+imagePullSecrets: [ ]
 nameOverride: ""
 fullnameOverride: ""
 
@@ -18,17 +18,17 @@ serviceAccount:
   # Specifies whether a service account should be created
   create: true
   # Annotations to add to the service account
-  annotations: {}
+  annotations: { }
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""
 
-podAnnotations: {}
+podAnnotations: { }
 
-podLabels: {}
+podLabels: { }
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext: { }
+# fsGroup: 2000
 
 securityContext:
   readOnlyRootFilesystem: true
@@ -39,10 +39,10 @@ securityContext:
   #   drop:
   #   - ALL
 
-resources: {}
-nodeSelector: {}
-tolerations: []
-affinity: {}
+resources: { }
+nodeSelector: { }
+tolerations: [ ]
+affinity: { }
 
 # Enable cert-manager
 enableCertManager: false
@@ -52,16 +52,9 @@ metrics:
 
 # Set the manager log level: info, debug (default: info)
 logLevel:
-# Amount of time that a pod is deleted after a denial of an admission (default: 90s)
-deleteAfter:
-# Delay a pod deletion by only delaying an admission without denying it (default: false)
-noDenyAdmission:
-# Allow pod deletion even if there were errors during the pod deletion interception (default: true)
-ignoreError: true
+# Amount of time that a pod is deleted after a denial of an admission (default: 20s, max: 25s)
+deleteAfter: 20s
+experimentalGeneralIngress: false
 
-# Time period for the controller pod to do a graceful shutdown. It should be greater than deleteAfter
-terminationGracePeriodSeconds: 100
-# Timeout for the ValidatingAdmissionWebhook. It should be long enough since admission delay cap is determined by this value
-webhookTimeoutSeconds: 30
-# webhook's namespaceSelector to limit where the
-namespaceSelector: {}
+# webhook's namespaceSelector to limit where the pod-graceful-drain is applied
+namespaceSelector: { }
