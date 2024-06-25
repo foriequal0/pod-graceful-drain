@@ -2,34 +2,33 @@ name: Release image
 on:
   push:
     tags:
-    - v*
+      - v*
   workflow_dispatch:
 jobs:
   build:
     name: Publish image
     runs-on: ubuntu-latest
+    env:
+      IMG_NAME: pod-graceful-drain
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-go@v2
-      with:
-        go-version: ^1.18
-    - uses: docker/login-action@v1
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.CR_PAT }}
-    - run: make docker-build
-    - name: Tag and push
-      run: |
-        GIT_VERSION=$(git describe --tags --dirty --always)
-        REGISTRY=ghcr.io/${{ github.repository_owner }}
-        IMG_NAME=pod-graceful-drain
+      - uses: actions/checkout@v2
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+      - run: |
+          docker build --tag "$IMG_NAME:latest" .
+      - name: Tag and push
+        run: |
+          GIT_VERSION=$(git describe --tags --dirty --always)
+          REGISTRY=ghcr.io/${{ github.repository_owner }}
 
-        tag-and-push() { docker tag $1 $2 && docker push $2; }
+          tag-and-push() { docker tag $1 $2 && docker push $2; }
 
-        tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:$GIT_VERSION
+          tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:$GIT_VERSION
 
-        LATEST_TAG="$(git describe --tags --dirty --always --abbrev=0)"
-        if git diff --quiet "$LATEST_TAG"; then
-          tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:latest
-        fi
+          LATEST_TAG="$(git describe --tags --dirty --always --abbrev=0)"
+          if git diff --quiet "$LATEST_TAG"; then
+            tag-and-push $IMG_NAME:latest $REGISTRY/$IMG_NAME:latest
+          fi
