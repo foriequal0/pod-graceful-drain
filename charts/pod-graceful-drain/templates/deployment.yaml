@@ -6,6 +6,9 @@ metadata:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "pod-graceful-drain.selectorLabels" . | nindent 6 }}
