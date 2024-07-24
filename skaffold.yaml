@@ -1,0 +1,35 @@
+# skaffold is just to help tighten the local development/test loop
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: pod-graceful-drain
+build:
+  artifacts:
+    - image: ghcr.io/foriequal0/pod-graceful-drain
+      docker:
+        dockerfile: docker/skaffold.Dockerfile
+      context: .
+  local:
+    push: false
+    useBuildkit: true
+    concurrency: 0
+deploy:
+  helm:
+    releases:
+      - name: pod-graceful-drain
+        chartPath: charts/pod-graceful-drain
+        valuesFiles:
+          - charts/pod-graceful-drain/values.yaml
+        setValues:
+          experimentalGeneralIngress: true
+          # Skaffold sends this parameter to Helm as a command line parameter
+          # '--set=logLevel=info,pod_graceful_drain=trace'. If we omit the backslash,
+          # Helm interprets a comma in the parameter as a delimiter for key=value pair,
+          # and it tries to set non-existent 'pod_graceful_drain' value to 'trace'.
+          # This escaping backslash is why I RIIR'd everything.
+          # Whenever I see Google-related products, I see this kind of practice.
+          # They implement some features in seemingly-unharmful broken ways because it is quick and simple.
+          # When they find features are broken, they don't fix it for compatibility reasons.
+          # Instead, they cover them up with still-broken ad-hoc mechanisms in obscure, undocumented ways.
+          # And they leak throughout their entire layers of abstractions like this.
+          logLevel: "info\\,pod_graceful_drain=trace"

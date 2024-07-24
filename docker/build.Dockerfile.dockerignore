@@ -1,0 +1,16 @@
+/.github/
+/charts/
+/tests/
+/.gitignore
+/LICENSE
+/README.md
+/.python-version
+/pyproject.toml
+/requirements.lock
+/requirements-dev.lock
+/skaffold.yaml
+
+/target/
+/.venv/
+
+/.idea/

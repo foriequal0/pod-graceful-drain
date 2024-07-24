@@ -1,11 +1,7 @@
-FROM rust:1.79-slim-bookworm as fetch
+FROM rust:1.79-slim-bookworm as builder
+RUN apt-get update && apt-get install -y git
 RUN mkdir /src
 WORKDIR /src
-COPY ./Cargo.* /src/
-RUN cargo fetch --verbose
-
-FROM fetch as builder
-RUN apt-get update && apt-get install -y git
 COPY . /src/
 RUN cargo install --path .
 

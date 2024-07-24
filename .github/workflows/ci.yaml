@@ -70,7 +70,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --tag "pod-graceful-drain:latest" .
+      - run: |
+          docker build --file docker/build.Dockerfile \
+            --tag "pod-graceful-drain:latest" \
+            .
       - run: docker image save --output pod-graceful-drain.tar pod-graceful-drain
       - uses: actions/upload-artifact@v4
         with:

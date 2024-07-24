@@ -46,7 +46,7 @@ spec:
             {{- end }}
           env:
             - name: RUST_LOG
-              value: {{ .Values.logLevel }}
+              value: {{ .Values.logLevel | quote }}
           readinessProbe:
             httpGet:
               path: "/healthz"
