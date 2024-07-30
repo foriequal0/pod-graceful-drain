@@ -31,6 +31,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         kind_image:
           - "v1.30.2"
@@ -77,14 +78,31 @@ jobs:
           path: ./pod-graceful-drain.tar
 
   smoke-test:
+    timeout-minutes: 3
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kind_image:
+          - "v1.30.2"
+          - "v1.29.4"
+          - "v1.28.9"
+          - "v1.27.13"
+          - "v1.26.15"
+          - "v1.25.16"
+          - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     needs:
       - build-image
     steps:
       - uses: actions/checkout@v4
-      - uses: helm/kind-action@v1.10.0
+      - name: Setup kind
+        run: |
+          kind create cluster --image="$KIND_IMAGE"
+      - uses: eifinger/setup-rye@v4
         with:
-          cluster_name: kind
+          version: '0.37.0'
       - uses: actions/download-artifact@v4
         with:
           name: pod-graceful-drain.tar
@@ -98,6 +116,8 @@ jobs:
             --set experimentalGeneralIngress=true \
             --set logLevel=info\\,pod_graceful_drain=trace \
             --wait=true --timeout=1m
+      - run: rye sync
+      - run: rye test
       - name: Dump
         if: always()
         run: |
