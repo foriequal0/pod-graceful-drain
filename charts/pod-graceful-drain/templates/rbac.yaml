@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 rules:
+  - apiGroups: [ events.k8s.io ]
+    resources: [ events ]
+    verbs: [ create ]
   - apiGroups: [ "" ]
     resources: [ users, groups ]
     verbs: [ impersonate ]
