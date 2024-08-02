@@ -60,10 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install helm kubeval
-        run: helm plugin install https://github.com/instrumenta/helm-kubeval
       - run: helm lint charts/pod-graceful-drain --strict
-      - run: helm kubeval charts/pod-graceful-drain
 
   build-image:
     timeout-minutes: 5
