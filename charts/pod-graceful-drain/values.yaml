@@ -39,7 +39,16 @@ securityContext:
   #   drop:
   #   - ALL
 
-resources: { }
+resources:
+  requests:
+    cpu: "100m"
+    # 10MB at rest.
+    memory: "50Mi"
+  limits:
+    # main runtime is single-threaded.
+    cpu: "1000m"
+    memory: "500Mi"
+
 nodeSelector: { }
 tolerations: [ ]
 affinity: { }

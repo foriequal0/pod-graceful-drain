@@ -4,7 +4,8 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use eyre::Result;
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
+use k8s_openapi::api::core::v1::{PodSpec, PodStatus};
 use k8s_openapi::api::{
     core::v1::{Pod, Service},
     networking::v1::Ingress,
@@ -21,7 +22,7 @@ use crate::elbv2::apis::TargetGroupBinding;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, Config, ServiceRegistry};
+use crate::{instrumented, try_some, Config, ServiceRegistry};
 
 #[derive(Clone)]
 pub struct Stores {
@@ -66,7 +67,22 @@ pub fn start_reflectors(
     let (pod_reader, pod_writer) = store();
     spawn_service(shutdown, "reflector:Pod", {
         let api: Api<Pod> = api_proivder.all();
-        let stream = watcher(api, Default::default());
+        let stream = watcher(api, Default::default()).map_ok(|event| {
+            event.modify(|pod| {
+                if let Some(spec) = try_some!(mut pod.spec?) {
+                    *spec = PodSpec {
+                        readiness_gates: spec.readiness_gates.clone(),
+                        ..PodSpec::default()
+                    }
+                }
+                if let Some(spec) = try_some!(mut pod.status?) {
+                    *spec = PodStatus {
+                        conditions: spec.conditions.clone(),
+                        ..PodStatus::default()
+                    }
+                }
+            })
+        });
         let signal = service_registry.register("reflector:Pod");
         run_reflector(shutdown, pod_writer, stream, signal)
     })?;
@@ -74,7 +90,13 @@ pub fn start_reflectors(
     let (service_reader, service_writer) = store();
     spawn_service(shutdown, "reflector:Service", {
         let api: Api<Service> = api_proivder.all();
-        let stream = watcher(api, Default::default());
+        let stream = watcher(api, Default::default()).map_ok(|ev| {
+            ev.modify(|service| {
+                service.metadata.annotations = None;
+                service.metadata.labels = None;
+                service.status = None;
+            })
+        });
         let signal = service_registry.register("reflector:Service");
         run_reflector(shutdown, service_writer, stream, signal)
     })?;
@@ -82,7 +104,13 @@ pub fn start_reflectors(
     let (ingress_reader, ingress_writer) = store();
     spawn_service(shutdown, "reflector:Ingress", {
         let api: Api<Ingress> = api_proivder.all();
-        let stream = watcher(api, Default::default());
+        let stream = watcher(api, Default::default()).map_ok(|ev| {
+            ev.modify(|ingress| {
+                ingress.metadata.annotations = None;
+                ingress.metadata.labels = None;
+                ingress.status = None;
+            })
+        });
         let signal = service_registry.register("reflector:Ingress");
         run_reflector(shutdown, ingress_writer, stream, signal)
     })?;
@@ -91,7 +119,13 @@ pub fn start_reflectors(
     if !config.experimental_general_ingress {
         spawn_service(shutdown, "reflector:TargetGroupBinding", {
             let api: Api<TargetGroupBinding> = api_proivder.all();
-            let stream = watcher(api, Default::default());
+            let stream = watcher(api, Default::default()).map_ok(|ev| {
+                ev.modify(|tgb| {
+                    tgb.metadata.annotations = None;
+                    tgb.metadata.labels = None;
+                    tgb.status = None;
+                })
+            });
             let signal = service_registry.register("reflector:TargetGroupBinding");
             run_reflector(shutdown, tgb_writer, stream, signal)
         })?;

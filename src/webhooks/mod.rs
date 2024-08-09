@@ -193,8 +193,9 @@ where
 
     let object_ref: ObjectRef<K> =
         get_object_ref_from_name(&request.name, request.namespace.as_ref());
+    let request_id: u32 = rand::random();
     instrumented!(
-        span!(Level::ERROR, "admission", %object_ref, operation = ?request.operation),
+        span!(Level::ERROR, "admission", %object_ref, operation = ?request.operation, request_id),
         async move {
             trace!(user_info=?request.user_info);
 
