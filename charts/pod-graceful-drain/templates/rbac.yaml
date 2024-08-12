@@ -9,7 +9,7 @@ rules:
     resources: [ events ]
     verbs: [ create ]
   - apiGroups: [ "" ]
-    resources: [ users, groups ]
+    resources: [ users, groups, serviceaccounts ]
     verbs: [ impersonate ]
   - apiGroups: [ "" ]
     resources: [ nodes ]
