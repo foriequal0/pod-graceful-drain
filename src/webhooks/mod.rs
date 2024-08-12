@@ -1,6 +1,7 @@
 mod config;
 mod handle_delete;
 mod handle_eviction;
+mod impersonate;
 mod patch;
 mod reactive_rustls_config;
 mod report;
@@ -38,6 +39,7 @@ use crate::utils::get_object_ref_from_name;
 pub use crate::webhooks::config::WebhookConfig;
 use crate::webhooks::handle_delete::delete_handler;
 use crate::webhooks::handle_eviction::eviction_handler;
+use crate::webhooks::impersonate::is_impersonated;
 pub use crate::webhooks::patch::patch_pod_isolate;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
 use crate::webhooks::report::{debug_report_for_ref, warn_report_for_ref};
@@ -183,7 +185,7 @@ async fn handle_common<'a, K, Fut>(
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>>
 where
     K: Resource + Debug + Serialize,
-    K::DynamicType: Default,
+    K::DynamicType: Default + Clone,
     Fut: Future<Output = Result<InterceptResult>>,
 {
     let request = match &review.request {
@@ -202,7 +204,7 @@ where
             if request.dry_run {
                 debug_report_for_ref(
                     state,
-                    ObjectReference::from(object_ref),
+                    ObjectReference::from(object_ref.clone()),
                     "Allow",
                     "DryRun",
                     format!(

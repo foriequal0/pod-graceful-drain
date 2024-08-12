@@ -21,6 +21,7 @@ axum-server = { version = "0.7.1", features = ["tls-rustls-no-provider"] }
 tower = "0.4.13"
 rustls = { version = "0.23.12", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.1.2"
+percent-encoding = "2.3.1"
 
 # observability libs
 tracing = "0.1.40"

@@ -29,23 +29,6 @@ impl ApiResolver {
         })
     }
 
-    pub fn impersonate_as(
-        &self,
-        user: Option<String>,
-        group: Option<Vec<String>>,
-    ) -> kube::Result<Self> {
-        let mut config = self.config.clone();
-        config.auth_info.impersonate = user;
-        config.auth_info.impersonate_groups = group;
-        let client = Client::try_from(config.clone())?;
-
-        Ok(Self {
-            client,
-            config,
-            namespace: self.namespace.clone(),
-        })
-    }
-
     pub fn all<K>(&self) -> Api<K>
     where
         K: Resource<Scope = NamespaceResourceScope>,
