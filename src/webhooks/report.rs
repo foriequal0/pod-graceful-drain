@@ -1,10 +1,9 @@
 use k8s_openapi::api::core::v1::{ObjectReference, Pod};
 use kube::runtime::events::{Event, EventType, Recorder};
 use kube::Resource;
-use tracing::{debug, enabled, info, Level};
+use tracing::{debug, event_enabled, info, warn, Level};
 
 use crate::webhooks::AppState;
-
 async fn report(
     state: &AppState,
     reference: ObjectReference,
@@ -52,7 +51,7 @@ pub async fn debug_report_for_ref(
     reason: &str,
     note: String,
 ) {
-    if !enabled!(Level::DEBUG) {
+    if !event_enabled!(Level::DEBUG) {
         return;
     }
 
@@ -77,16 +76,16 @@ pub async fn warn_report_for_ref(
     reason: &str,
     note: String,
 ) {
-    if !enabled!(Level::WARN) {
+    if !event_enabled!(Level::WARN) {
         return;
     }
 
-    info!(action, reason, note);
+    warn!(action, reason, note);
     report(state, object_ref, EventType::Warning, action, reason, note).await;
 }
 
 pub async fn report_for(state: &AppState, pod: &Pod, action: &str, reason: &str, note: String) {
-    if !enabled!(Level::INFO) {
+    if !event_enabled!(Level::INFO) {
         return;
     }
 
