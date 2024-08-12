@@ -5,7 +5,7 @@ use tracing::{debug, enabled, info, Level};
 
 use crate::webhooks::AppState;
 
-pub async fn report(
+async fn report(
     state: &AppState,
     reference: ObjectReference,
     type_: EventType,
@@ -68,6 +68,21 @@ pub async fn debug_report_for(
     note: String,
 ) {
     debug_report_for_ref(state, pod.object_ref(&()), action, reason, note).await;
+}
+
+pub async fn warn_report_for_ref(
+    state: &AppState,
+    object_ref: ObjectReference,
+    action: &str,
+    reason: &str,
+    note: String,
+) {
+    if !enabled!(Level::WARN) {
+        return;
+    }
+
+    info!(action, reason, note);
+    report(state, object_ref, EventType::Warning, action, reason, note).await;
 }
 
 pub async fn report_for(state: &AppState, pod: &Pod, action: &str, reason: &str, note: String) {

@@ -22,7 +22,7 @@ use k8s_openapi::api::{core::v1::Pod, policy::v1::Eviction};
 use k8s_openapi::serde::Serialize;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use kube::core::DynamicObject;
-use kube::runtime::events::{EventType, Reporter};
+use kube::runtime::events::Reporter;
 use kube::runtime::reflector::ObjectRef;
 use kube::Resource;
 use serde_json::{json, Value};
@@ -40,7 +40,7 @@ use crate::webhooks::handle_delete::delete_handler;
 use crate::webhooks::handle_eviction::eviction_handler;
 pub use crate::webhooks::patch::patch_pod_isolate;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
-use crate::webhooks::report::{debug_report_for_ref, report};
+use crate::webhooks::report::{debug_report_for_ref, warn_report_for_ref};
 use crate::webhooks::try_bind::try_bind;
 use crate::{instrumented, LoadBalancingConfig, ServiceRegistry};
 
@@ -230,10 +230,9 @@ where
                     ValueOrStatusCode::Value(response.into_review())
                 }
                 Err(err) => {
-                    report(
+                    warn_report_for_ref(
                         state,
                         ObjectReference::from(object_ref),
-                        EventType::Warning,
                         "Error",
                         "Error",
                         format!("{err:#}"),
