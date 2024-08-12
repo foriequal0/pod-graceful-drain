@@ -1,0 +1,161 @@
+name: "CI"
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check:
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+      - name: cargo fetch
+        run: cargo fetch --verbose
+      - name: cargo check
+        run: cargo check --all-features --all-targets
+        if: always()
+      - name: cargo fmt
+        uses: actions-rust-lang/rustfmt@v1
+        if: always()
+      - id: clippy
+        run: cargo clippy --all-features --all-targets
+        if: always()
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kind_image:
+          - "v1.30.2"
+          - "v1.29.4"
+          - "v1.28.9"
+          - "v1.27.13"
+          - "v1.26.15"
+          - "v1.25.16"
+          - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ""
+      - name: Setup kind
+        run: |
+          kind create cluster --image="$KIND_IMAGE" --name test-pgd
+      - run: cargo fetch --verbose
+      - run: cargo test --all-features
+        timeout-minutes: 5
+
+  tests-result:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    steps:
+      - name: All tests ok
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Some tests failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1
+
+  lint-helm:
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: helm lint charts/pod-graceful-drain --strict
+
+  build-image:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          docker build --file docker/build.Dockerfile \
+            --tag "pod-graceful-drain:latest" \
+            .
+      - run: docker image save --output pod-graceful-drain.tar pod-graceful-drain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pod-graceful-drain.tar
+          path: ./pod-graceful-drain.tar
+
+  smoke-test:
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kind_image:
+          - "v1.30.2"
+          - "v1.29.4"
+          - "v1.28.9"
+          - "v1.27.13"
+          - "v1.26.15"
+          - "v1.25.16"
+          - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
+    needs:
+      - build-image
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup kind
+        run: |
+          kind create cluster --image="$KIND_IMAGE"
+      - uses: eifinger/setup-rye@v4
+        with:
+          version: '0.37.0'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pod-graceful-drain.tar
+      - run: |
+          docker image load --input pod-graceful-drain.tar
+          kind load docker-image pod-graceful-drain:latest
+      - run: |
+          helm install pod-graceful-drain charts/pod-graceful-drain \
+            --create-namespace --namespace pod-graceful-drain \
+            --set image.repository=pod-graceful-drain --set image.tag=latest \
+            --set experimentalGeneralIngress=true \
+            --set logLevel=info\\,pod_graceful_drain=trace \
+            --wait=true --timeout=1m
+      - run: rye sync
+      - run: rye test
+      - name: Dump
+        if: always()
+        run: |
+          KUBECTL="kubectl --namespace pod-graceful-drain"
+          echo "::group::kubectl get"
+          ${KUBECTL} get --ignore-not-found=true --output wide all
+          echo "::endgroup::"
+
+          echo "::group::kubectl describe"
+          ${KUBECTL} describe all
+          echo "::endgroup::"
+
+          for POD in $(${KUBECTL} get pod -o=name); do
+          echo "::group::kubectl logs ${POD}"
+          ${KUBECTL} logs --ignore-errors=true "${POD}"
+          echo "::endgroup::"
+          done
+
+  smoke-tests-result:
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: always()
+    steps:
+      - name: All tests ok
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Some tests failed
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1

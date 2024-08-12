@@ -6,6 +6,9 @@ metadata:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   selector:
     matchLabels:
       {{- include "pod-graceful-drain.selectorLabels" . | nindent 6 }}
@@ -38,15 +41,17 @@ spec:
             {{- with .Values.deleteAfter }}
             - --delete-after={{ . }}
             {{- end }}
-            {{- if .Values.noDenyAdmission }}
-            - --no-deny-admission
+            {{- if .Values.experimentalGeneralIngress }}
+            - --experimental-general-ingress
             {{- end }}
-            {{- with .Values.logLevel }}
-            - --log-level={{ . }}
-            {{- end }}
-            {{- if .Values.ignoreError }}
-            - --ignore-error
-            {{- end }}
+          env:
+            - name: RUST_LOG
+              value: {{ .Values.logLevel | quote }}
+          readinessProbe:
+            httpGet:
+              path: "/healthz"
+              port: 9443
+              scheme: HTTPS
           ports:
             - containerPort: 9443
               name: webhook-server
@@ -74,7 +79,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ template "pod-graceful-drain.timeoutSeconds" . }}
       volumes:
         - name: cert
           secret:

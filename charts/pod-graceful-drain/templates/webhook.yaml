@@ -11,7 +11,7 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
-  - admissionReviewVersions: [v1beta1, v1]
+  - admissionReviewVersions: [ v1beta1, v1 ]
     clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
@@ -19,16 +19,16 @@ webhooks:
       service:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /validate-core-v1-pod
-    failurePolicy: {{ if .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
-    name: vpod.pod-graceful-drain.io
+        path: /webhook/validate
+    failurePolicy: Ignore
+    name: validate.pod-graceful-drain.io
     rules:
-      - apiGroups: [""]
-        apiVersions: [v1]
-        operations: [DELETE]
-        resources: [pods]
-    sideEffects: NoneOnDryRun
-    timeoutSeconds: {{ .Values.webhookTimeoutSeconds }}
+      - apiGroups: [ "" ]
+        apiVersions: [ v1 ]
+        operations: [ DELETE ]
+        resources: [ pods ]
+    sideEffects: None
+    timeoutSeconds: {{ template "pod-graceful-drain.timeoutSeconds" . }}
     {{- with .Values.namespaceSelector }}
     namespaceSelector:
       {{- toYaml . | nindent 6 }}
@@ -45,7 +45,7 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 webhooks:
-  - admissionReviewVersions: [v1beta1, v1]
+  - admissionReviewVersions: [ v1beta1, v1 ]
     clientConfig:
       {{- if not .Values.enableCertManager }}
       caBundle: {{ $tls.caCert }}
@@ -53,14 +53,14 @@ webhooks:
       service:
         name: {{ template "pod-graceful-drain.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
-        path: /mutate-core-v1-pod-eviction
-    failurePolicy: {{ if .Values.ignoreError -}}Ignore{{- else -}}Fail{{end}}
-    name: mpodseviction.pod-graceful-drain.io
+        path: /webhook/mutate
+    failurePolicy: Ignore
+    name: mutate.pod-graceful-drain.io
     rules:
-      - apiGroups: [""]
-        apiVersions: [v1]
-        operations: [CREATE]
-        resources: [pods/eviction]
+      - apiGroups: [ "" ]
+        apiVersions: [ v1 ]
+        operations: [ CREATE ]
+        resources: [ pods/eviction ]
     sideEffects: NoneOnDryRun
     {{- with .Values.namespaceSelector }}
     namespaceSelector:
@@ -106,5 +106,5 @@ metadata:
   labels:
     {{- include "pod-graceful-drain.labels" . | nindent 4 }}
 spec:
-  selfSigned: {}
+  selfSigned: { }
 {{- end }}
