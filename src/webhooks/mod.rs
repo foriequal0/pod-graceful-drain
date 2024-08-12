@@ -31,6 +31,7 @@ use tracing::{info, span, trace, Level};
 use crate::api_resolver::ApiResolver;
 use crate::config::Config;
 use crate::consts::CONTROLLER_NAME;
+use crate::impersonate::is_impersonated_self;
 use crate::reflector::Stores;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
@@ -198,6 +199,28 @@ where
         span!(Level::ERROR, "admission", %object_ref, operation = ?request.operation, request_id),
         async move {
             trace!(user_info=?request.user_info);
+
+            if is_impersonated_self(&request.user_info) {
+                // impersonated reentry is always a dry-run
+                if !request.dry_run {
+                    return ValueOrStatusCode::StatusCode(StatusCode::BAD_REQUEST);
+                }
+
+                debug_report_for_ref(
+                    state,
+                    ObjectReference::from(object_ref),
+                    "Allow",
+                    "Reentry-Impersonated",
+                    format!(
+                        "operation={:?}, kind={}",
+                        request.operation,
+                        <K as Resource>::kind(&Default::default())
+                    ),
+                )
+                .await;
+
+                return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
+            }
 
             if request.dry_run {
                 debug_report_for_ref(
