@@ -201,6 +201,23 @@ where
         async move {
             trace!(user_info=?request.user_info);
 
+            if is_impersonated(&request.user_info) {
+                debug_report_for_ref(
+                    state,
+                    ObjectReference::from(object_ref.clone()),
+                    "Allow",
+                    "Impersonated",
+                    format!(
+                        "operation={:?}, kind={}",
+                        request.operation,
+                        <K as Resource>::kind(&Default::default())
+                    ),
+                )
+                .await;
+
+                return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
+            }
+
             if request.dry_run {
                 debug_report_for_ref(
                     state,

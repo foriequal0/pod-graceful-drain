@@ -4,6 +4,8 @@ use k8s_openapi::api::authentication::v1::UserInfo;
 use percent_encoding::{utf8_percent_encode, AsciiSet};
 use std::str::FromStr;
 
+const IMPERSONATED_USER_EXTRA: &str = "pod-graceful-drain/impersonated";
+
 pub fn impersonate<T>(req: &mut Request<T>, user_info: &UserInfo) -> Result<()> {
     let headers = req.headers_mut();
     if let Some(uid) = &user_info.uid {
@@ -35,7 +37,21 @@ pub fn impersonate<T>(req: &mut Request<T>, user_info: &UserInfo) -> Result<()> 
         }
     }
 
+    {
+        let header_name = to_header_name("Impersonate-Extra-", IMPERSONATED_USER_EXTRA)?;
+        let header_value = HeaderValue::from_static("true");
+        headers.insert(header_name, header_value);
+    }
+
     Ok(())
+}
+
+pub fn is_impersonated(user_info: &UserInfo) -> bool {
+    if let Some(extra) = &user_info.extra {
+        return extra.contains_key(IMPERSONATED_USER_EXTRA);
+    }
+
+    false
 }
 
 // https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation
