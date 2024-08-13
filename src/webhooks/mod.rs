@@ -4,6 +4,7 @@ mod handle_eviction;
 mod patch;
 mod reactive_rustls_config;
 mod report;
+mod self_recognize;
 mod try_bind;
 
 use std::fmt::Debug;
@@ -31,6 +32,7 @@ use tracing::{info, span, trace, Level};
 use crate::api_resolver::ApiResolver;
 use crate::config::Config;
 use crate::consts::CONTROLLER_NAME;
+use crate::downward_api::DownwardAPI;
 use crate::impersonate::is_impersonated_self;
 use crate::reflector::Stores;
 use crate::shutdown::Shutdown;
@@ -42,10 +44,12 @@ use crate::webhooks::handle_eviction::eviction_handler;
 pub use crate::webhooks::patch::patch_pod_isolate;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
 use crate::webhooks::report::{debug_report_for_ref, warn_report_for_ref};
+use crate::webhooks::self_recognize::is_my_serviceaccount;
 use crate::webhooks::try_bind::try_bind;
 use crate::{instrumented, LoadBalancingConfig, ServiceRegistry};
 
 /// Start an admission webhook that intercepts pod deletion, pod eviction requests.
+#[allow(clippy::too_many_arguments)]
 pub async fn start_webhook(
     api_resolver: &ApiResolver,
     config: Config,
@@ -53,6 +57,7 @@ pub async fn start_webhook(
     stores: Stores,
     service_registry: &ServiceRegistry,
     loadbalancing: &LoadBalancingConfig,
+    downward_api: &DownwardAPI,
     shutdown: &Shutdown,
 ) -> Result<SocketAddr> {
     let app = Router::new()
@@ -66,11 +71,10 @@ pub async fn start_webhook(
             stores,
             service_registry: service_registry.clone(),
             loadbalancing: loadbalancing.clone(),
+            downward_api: downward_api.clone(),
             event_reporter: Reporter {
                 controller: String::from(CONTROLLER_NAME),
-                instance: hostname::get()
-                    .ok()
-                    .and_then(|n| n.to_str().map(String::from)),
+                instance: downward_api.pod_name.clone(),
             },
         });
 
@@ -121,6 +125,7 @@ struct AppState {
     service_registry: ServiceRegistry,
     event_reporter: Reporter,
     loadbalancing: LoadBalancingConfig,
+    downward_api: DownwardAPI,
 }
 
 async fn healthz_handler(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
@@ -199,6 +204,23 @@ where
         span!(Level::ERROR, "admission", %object_ref, operation = ?request.operation, request_id),
         async move {
             trace!(user_info=?request.user_info);
+
+            if is_my_serviceaccount(&state.downward_api, &request.user_info) {
+                debug_report_for_ref(
+                    state,
+                    ObjectReference::from(object_ref),
+                    "Allow",
+                    "Reentry-Controller",
+                    format!(
+                        "operation={:?}, kind={}",
+                        request.operation,
+                        <K as Resource>::kind(&Default::default())
+                    ),
+                )
+                .await;
+
+                return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
+            }
 
             if is_impersonated_self(&request.user_info) {
                 // impersonated reentry is always a dry-run

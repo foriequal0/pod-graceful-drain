@@ -13,9 +13,10 @@ use k8s_openapi::api::networking::v1::Ingress;
 use kube::api::{ListParams, ObjectList};
 use rcgen::generate_simple_self_signed;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use uuid::Uuid;
 
-use pod_graceful_drain::{Config, LoadBalancingConfig, ServiceRegistry, WebhookConfig};
+use pod_graceful_drain::{
+    Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
+};
 
 use crate::testutils::context::{within_test_cluster, TestContext};
 use crate::testutils::event_tracker::EventTracker;
@@ -44,7 +45,8 @@ async fn setup(context: &TestContext, config: Config) {
     let service_domain = install_test_host_service(context).await;
     let (ca_bundle, cert, key_pair) = generate_self_signed_cert(service_domain).await.unwrap();
     let service_registry = ServiceRegistry::default();
-    let loadbalancing = LoadBalancingConfig::new(Uuid::nil());
+    let downward_api = DownwardAPI::default();
+    let loadbalancing = LoadBalancingConfig::with_str("test");
 
     pod_graceful_drain::start_controller(
         &context.api_resolver,
@@ -67,6 +69,7 @@ async fn setup(context: &TestContext, config: Config) {
         stores,
         &service_registry,
         &loadbalancing,
+        &downward_api,
         &context.shutdown,
     )
     .await

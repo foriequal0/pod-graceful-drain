@@ -16,7 +16,6 @@ use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
-use uuid::Uuid;
 
 use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown};
 
@@ -148,7 +147,7 @@ where
     Fut: Future + Send,
     Fut::Output: Send + 'static,
 {
-    let context = match new_test_context(cluster_name, Uuid::nil()).await {
+    let context = match new_test_context(cluster_name).await {
         Ok(context) => context,
         Err(err) => {
             eprintln!("{err:?}");
@@ -179,7 +178,7 @@ where
     result
 }
 
-async fn new_test_context(cluster_name: &str, instance_id: Uuid) -> Result<TestContext> {
+async fn new_test_context(cluster_name: &str) -> Result<TestContext> {
     let file = get_temp_kubeconfig_file_from_kind(cluster_name).await?;
     let kubeconfig = Kubeconfig::read_from(file.path()).context("valid kubeconfig yaml")?;
     let config = Config::from_custom_kubeconfig(kubeconfig, &KubeConfigOptions::default()).await?;
@@ -190,7 +189,7 @@ async fn new_test_context(cluster_name: &str, instance_id: Uuid) -> Result<TestC
         api_resolver: ApiResolver::try_new_within(config, &namespace)?,
         cluster_name: cluster_name.to_string(),
         namespace: namespace.clone(),
-        loadbalancing: LoadBalancingConfig::new(instance_id),
+        loadbalancing: LoadBalancingConfig::with_str("00000000-0000-0000-0000-000000000000"),
         shutdown,
         teardown: Arc::new(Mutex::new(Vec::new())),
         cluster_resources: Arc::new(Mutex::new(HashSet::new())),

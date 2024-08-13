@@ -1752,7 +1752,6 @@ dependencies = [
  "eyre",
  "futures",
  "genawaiter",
- "hostname",
  "humantime",
  "json-patch",
  "jsonptr",
