@@ -69,6 +69,7 @@ pub fn start_reflectors(
         let api: Api<Pod> = api_proivder.all();
         let stream = watcher(api, Default::default()).map_ok(|event| {
             event.modify(|pod| {
+                pod.metadata.managed_fields = None;
                 if let Some(spec) = try_some!(mut pod.spec?) {
                     *spec = PodSpec {
                         readiness_gates: spec.readiness_gates.clone(),
@@ -94,6 +95,7 @@ pub fn start_reflectors(
             ev.modify(|service| {
                 service.metadata.annotations = None;
                 service.metadata.labels = None;
+                service.metadata.managed_fields = None;
                 service.status = None;
             })
         });
@@ -108,6 +110,7 @@ pub fn start_reflectors(
             ev.modify(|ingress| {
                 ingress.metadata.annotations = None;
                 ingress.metadata.labels = None;
+                ingress.metadata.managed_fields = None;
                 ingress.status = None;
             })
         });
@@ -123,6 +126,7 @@ pub fn start_reflectors(
                 ev.modify(|tgb| {
                     tgb.metadata.annotations = None;
                     tgb.metadata.labels = None;
+                    tgb.metadata.managed_fields = None;
                     tgb.status = None;
                 })
             });
