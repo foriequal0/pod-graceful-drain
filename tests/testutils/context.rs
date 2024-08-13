@@ -190,7 +190,7 @@ async fn new_test_context(cluster_name: &str, instance_id: Uuid) -> Result<TestC
         api_resolver: ApiResolver::try_new_within(config, &namespace)?,
         cluster_name: cluster_name.to_string(),
         namespace: namespace.clone(),
-        loadbalancing: LoadBalancingConfig::new(instance_id),
+        loadbalancing: LoadBalancingConfig::with_str(instance_id),
         shutdown,
         teardown: Arc::new(Mutex::new(Vec::new())),
         cluster_resources: Arc::new(Mutex::new(HashSet::new())),

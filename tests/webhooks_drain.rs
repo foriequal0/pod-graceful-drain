@@ -44,7 +44,7 @@ async fn setup(context: &TestContext, config: Config) {
     let service_domain = install_test_host_service(context).await;
     let (ca_bundle, cert, key_pair) = generate_self_signed_cert(service_domain).await.unwrap();
     let service_registry = ServiceRegistry::default();
-    let loadbalancing = LoadBalancingConfig::new(Uuid::nil());
+    let loadbalancing = LoadBalancingConfig::with_str(Uuid::nil());
 
     pod_graceful_drain::start_controller(
         &context.api_resolver,

@@ -46,7 +46,6 @@ backoff = "0.4.0"
 rand = "0.8.5"
 notify = "6.1.1"
 debounced = "0.1.0"
-hostname = "0.4.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
