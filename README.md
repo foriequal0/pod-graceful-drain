@@ -53,3 +53,24 @@ It modifies the requested `pods/eviction`, which usually made during the `kubect
 
 I find that this is more 'graceful' than the brutal `sleep`. It can still feel like ad-hoc, and hacky, but the duct tapes are okay if they are hidden in the wall (until they leak).
 
+## Development
+
+### Prerequisite
+
+Integration test uses [`kubectl`](https://kubernetes.io/docs/reference/kubectl/) and [`kind`](https://kind.sigs.k8s.io)
+binary at `PATH`.
+You can override the path of them with `KUBECTL` and `KIND` environment variables before running tests.
+
+```shell
+export KUBECTL=<path-to-kubectl>
+export KIND=<path-to-kind>
+cargo test
+```
+
+### Windows
+
+If you're using Windows, you might find it is much easier to compile dependencies with `msvc` toolchain.
+
+```shell
+rustup override set stable-x86_64-pc-windows-msvc
+```
