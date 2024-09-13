@@ -85,6 +85,7 @@ where
         "{DEFAULT_TEST_CLUSTER_NAME}-{}",
         rand::thread_rng().gen_range(0..100000)
     );
+    let kind = std::env::var("KIND").unwrap_or("kind".to_owned());
     let kind_image = std::env::var("KIND_IMAGE").unwrap_or(DEFAULT_KIND_IMAGE.to_owned());
     let dummy_kubeconfig = NamedTempFile::new().unwrap();
     let mut cluster_config = NamedTempFile::new().unwrap();
@@ -102,7 +103,7 @@ nodes:
     .unwrap();
 
     run_command(&CommandParams {
-        command: "kind",
+        command: &kind,
         config_args: &[],
         args: &[
             "create",
@@ -125,7 +126,7 @@ nodes:
     let result = within_random_namespace_with_cluster(&random_cluster_name, f).await;
 
     run_command(&CommandParams {
-        command: "kind",
+        command: &kind,
         config_args: &[],
         args: &["delete", "cluster", "--name", &random_cluster_name],
         stdin: None,
@@ -216,10 +217,11 @@ async fn new_test_context(cluster_name: &str, instance_id: Uuid) -> Result<TestC
 }
 
 async fn get_temp_kubeconfig_file_from_kind(context: &str) -> Result<NamedTempFile> {
+    let kind = std::env::var("KIND").unwrap_or("kind".to_owned());
     let mut file = NamedTempFile::new()?;
 
     let params = CommandParams {
-        command: "kind",
+        command: &kind,
         config_args: &[],
         args: &["get", "kubeconfig", "--name", context],
         stdin: None,
