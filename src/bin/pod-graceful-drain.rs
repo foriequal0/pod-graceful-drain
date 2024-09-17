@@ -1,11 +1,14 @@
+use std::process::ExitCode;
+use std::time::Duration;
+
 use clap::Parser;
 use color_eyre::config::Frame;
 use eyre::Result;
-use std::process::ExitCode;
-use std::time::Duration;
 use tokio::select;
 use tracing::{debug, error, info, Level};
 use tracing_error::ErrorLayer;
+use tracing_subscriber::filter::FromEnvError;
+use tracing_subscriber::fmt::Layer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::Directive, EnvFilter};
 use uuid::Uuid;
@@ -91,18 +94,26 @@ fn selfish_frame_filter(frames: &mut Vec<&Frame>) {
 }
 
 fn init_tracing_subscriber() -> Result<()> {
-    let filter = EnvFilter::builder()
-        .with_default_directive(Directive::from(Level::INFO))
-        .from_env()?;
-
-    let fmt = tracing_subscriber::fmt::layer().with_filter(filter);
-
     tracing_subscriber::registry()
-        .with(fmt)
-        .with(ErrorLayer::default())
+        .with({
+            let layer = Layer::default();
+            let filter = env_filter()?;
+            layer.with_filter(filter)
+        })
+        .with({
+            let layer = ErrorLayer::default();
+            let filter = env_filter()?;
+            layer.with_filter(filter)
+        })
         .try_init()?;
 
-    Ok(())
+    return Ok(());
+
+    fn env_filter() -> Result<EnvFilter, FromEnvError> {
+        EnvFilter::builder()
+            .with_default_directive(Directive::from(Level::INFO))
+            .from_env()
+    }
 }
 
 fn install_color_eyre() -> Result<()> {
