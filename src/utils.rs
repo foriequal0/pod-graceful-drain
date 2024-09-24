@@ -64,23 +64,6 @@ macro_rules! instrumented {
     }}
 }
 
-#[cfg(test)]
-#[macro_export]
-macro_rules! assert_matches {
-    ($expr:expr, $($tt:tt)+) => {{
-        let value = $expr;
-        match value {
-            $($tt)* => {}
-            _ => ::std::panic!(
-                "Expression = `{}`, value = `{:?}` does not match with pattern = `{}`.",
-                stringify!($expr),
-                value,
-                stringify!($($tt)*),
-            ),
-        }
-    }};
-}
-
 #[macro_export]
 macro_rules! try_some {
     (@coalesce ($($h:tt)*)) => {
