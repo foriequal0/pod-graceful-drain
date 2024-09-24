@@ -17,12 +17,14 @@ use kube::runtime::watcher::Event;
 use kube::{Api, Resource};
 use tracing::{error, span, trace, Level};
 
+use try_some::try_some;
+
 use crate::api_resolver::ApiResolver;
 use crate::elbv2::apis::TargetGroupBinding;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, try_some, Config, ServiceRegistry};
+use crate::{instrumented, Config, ServiceRegistry};
 
 #[derive(Clone)]
 pub struct Stores {

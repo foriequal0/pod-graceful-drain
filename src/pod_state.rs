@@ -4,11 +4,13 @@ use kube::runtime::reflector::ObjectRef;
 use kube::{Resource, ResourceExt};
 use std::collections::{HashMap, HashSet};
 
+use try_some::try_some;
+
 use crate::elbv2::apis::TargetType;
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;
 use crate::reflector::Stores;
 use crate::utils::get_object_ref_from_name;
-use crate::{try_some, Config};
+use crate::Config;
 
 pub fn is_pod_ready(pod: &Pod) -> bool {
     let readiness_gates = {
