@@ -26,3 +26,7 @@ pub use crate::webhooks::{start_webhook, WebhookConfig};
 
 #[cfg(test)]
 pub use crate::webhooks::patch_pod_isolate;
+
+#[cfg(test)]
+#[macro_use]
+extern crate assert_matches;

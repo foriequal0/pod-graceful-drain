@@ -83,7 +83,6 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::assert_matches;
 
     #[tokio::test]
     async fn graceful_shutdown_on_shutdown_request() {

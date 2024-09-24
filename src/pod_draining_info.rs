@@ -49,7 +49,6 @@ pub fn get_pod_draining_info(pod: &Pod) -> PodDrainingInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_matches;
 
     macro_rules! from_json {
         ($($json:tt)+) => {
