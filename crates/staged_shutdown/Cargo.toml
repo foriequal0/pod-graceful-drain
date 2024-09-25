@@ -1,0 +1,9 @@
+[package]
+name = "staged_shutdown"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-shutdown = "0.2.2"
+strum = "0.26.3"
+strum_macros = "0.26.4"

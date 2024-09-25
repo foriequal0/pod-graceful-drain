@@ -7,6 +7,7 @@ use tokio::{select, spawn};
 use tracing::{debug, error, span, warn, Instrument, Level};
 
 use crate::shutdown::Shutdown;
+use crate::ShutdownStage;
 
 #[derive(Debug)]
 pub enum ServiceExit {
@@ -27,13 +28,15 @@ pub fn spawn_service(
         let shutdown = shutdown.clone();
         async move {
             match spawn(future).await {
-                Ok(_) if shutdown.is_shutdown_triggered() => ServiceExit::GracefulShutdown,
+                Ok(_) if shutdown.is_triggered(ShutdownStage::Final) => {
+                    ServiceExit::GracefulShutdown
+                }
                 Ok(_) => {
-                    shutdown.trigger_shutdown();
+                    shutdown.trigger(ShutdownStage::Final);
                     ServiceExit::EarlyStop
                 }
                 Err(err) => {
-                    shutdown.trigger_shutdown();
+                    shutdown.trigger(ShutdownStage::Final);
                     ServiceExit::Panic(err)
                 }
             }
@@ -45,7 +48,7 @@ pub fn spawn_service(
         async move {
             let mut wrapped = Box::pin(wrapped);
             let shutdown_log = async move {
-                shutdown.wait_shutdown_triggered().await;
+                shutdown.wait_triggered(ShutdownStage::Final).await;
                 tokio::time::sleep(Duration::from_secs(3)).await;
             };
 
@@ -72,7 +75,7 @@ pub fn spawn_service(
     let instrumented = logged.instrument(span!(Level::ERROR, "service", "{}", service_name));
 
     let waited = shutdown
-        .wrap_delay_shutdown(instrumented)
+        .wrap_delay(ShutdownStage::Final, instrumented)
         .context(service_name)?;
 
     Ok(spawn(waited))
@@ -90,13 +93,13 @@ mod tests {
         let handle = spawn_service(&shutdown, "test", {
             let shutdown = shutdown.clone();
             async move {
-                shutdown.wait_shutdown_triggered().await;
+                shutdown.wait_triggered(ShutdownStage::Final).await;
                 tokio::time::sleep(Duration::from_micros(500)).await;
             }
         })
         .unwrap();
 
-        shutdown.trigger_shutdown();
+        shutdown.trigger(ShutdownStage::Final);
 
         assert_matches!(handle.await, Ok(ServiceExit::GracefulShutdown));
     }
@@ -135,14 +138,14 @@ mod tests {
         let other_handle = spawn_service(&shutdown, "other", {
             let shutdown = shutdown.clone();
             async move {
-                shutdown.wait_shutdown_triggered().await;
+                shutdown.wait_triggered(ShutdownStage::Final).await;
                 tokio::time::sleep(Duration::from_micros(500)).await;
             }
         })
         .unwrap();
 
         assert_matches!(handle.await, Ok(ServiceExit::EarlyStop));
-        assert!(shutdown.is_shutdown_triggered());
+        assert!(shutdown.is_triggered(ShutdownStage::Final));
         assert_matches!(other_handle.await, Ok(ServiceExit::GracefulShutdown));
     }
 
@@ -158,15 +161,15 @@ mod tests {
         let other_handle = spawn_service(&shutdown, "other", {
             let shutdown = shutdown.clone();
             async move {
-                shutdown.wait_shutdown_triggered().await;
+                shutdown.wait_triggered(ShutdownStage::Final).await;
                 tokio::time::sleep(Duration::from_micros(500)).await;
             }
         })
         .unwrap();
 
         assert_matches!(handle.await, Ok(ServiceExit::Panic(_)));
-        assert!(shutdown.is_shutdown_triggered());
-        shutdown.wait_shutdown_complete().await;
+        assert!(shutdown.is_triggered(ShutdownStage::Final));
+        shutdown.wait_complete(ShutdownStage::Final).await;
         assert_matches!(other_handle.await, Ok(ServiceExit::GracefulShutdown));
     }
 }

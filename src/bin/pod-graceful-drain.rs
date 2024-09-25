@@ -14,8 +14,8 @@ use tracing_subscriber::{filter::Directive, EnvFilter};
 use uuid::Uuid;
 
 use pod_graceful_drain::{
-    start_controller, start_reflectors, start_webhook, ApiResolver, Config, LoadBalancingConfig,
-    ServiceRegistry, Shutdown, WebhookConfig,
+    create_shutdown, start_controller, start_reflectors, start_webhook, ApiResolver, Config,
+    LoadBalancingConfig, ServiceRegistry, Shutdown, ShutdownStage, WebhookConfig,
 };
 
 #[tokio::main(flavor = "current_thread")]
@@ -27,19 +27,19 @@ async fn main() -> Result<ExitCode> {
 
     print_build_info();
 
-    let shutdown = Shutdown::new();
+    let shutdown = create_shutdown();
     if let Err(err) = try_main(config, &shutdown).await {
         error!(?err, "Failed to start server");
-        shutdown.trigger_shutdown();
+        shutdown.trigger(ShutdownStage::Final);
     }
 
-    shutdown.wait_shutdown_triggered().await;
+    shutdown.wait_triggered(ShutdownStage::Final).await;
 
     select! {
-        _ = shutdown.wait_shutdown_complete() => {},
-        _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
-            info!("Waiting for graceful shutdown");
-            shutdown.wait_shutdown_complete().await;
+        _ = shutdown.wait_triggered(ShutdownStage::Final) => {},
+        _ = tokio::time::sleep(Duration::from_secs(1)) => {
+            info!("Waiting for the 'Cleanup' stage of shutdown");
+            shutdown.wait_complete(ShutdownStage::Final).await;
         }
     }
 
@@ -76,7 +76,7 @@ async fn try_main(config: Config, shutdown: &Shutdown) -> Result<()> {
 
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => {}
-            _ = shutdown.wait_shutdown_triggered() => {
+            _ = shutdown.wait_triggered(ShutdownStage::Final) => {
                 break
             },
         }

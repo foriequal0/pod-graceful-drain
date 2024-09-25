@@ -1,95 +1,54 @@
-use std::future::Future;
-
-use async_shutdown::{
-    DelayShutdownToken, ShutdownAlreadyCompleted, ShutdownComplete, ShutdownManager,
-    ShutdownSignal, WrapDelayShutdown,
-};
-use eyre::Result;
+use staged_shutdown::StagedShutdown;
+use strum_macros::EnumIter;
 use tokio::signal;
 use tracing::info;
 
-#[derive(Clone)]
-pub struct Shutdown {
-    drain: ShutdownManager<()>,
-    shutdown: ShutdownManager<()>,
+#[derive(Eq, PartialEq, Hash, Copy, Clone, EnumIter, Debug)]
+pub enum ShutdownStage {
+    Drain,
+    Final,
 }
 
-impl Shutdown {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Shutdown {
-        Self::new_with_drain_signal(shutdown_signal())
-    }
+pub type Shutdown = StagedShutdown<ShutdownStage>;
 
-    pub fn new_with_drain_signal<F>(signal: F) -> Shutdown
-    where
-        F: Future + Send + Sync + 'static,
-    {
-        let drain = ShutdownManager::new();
-        let shutdown = ShutdownManager::new();
+pub fn create_shutdown() -> Shutdown {
+    let shutdown = StagedShutdown::new();
 
-        tokio::spawn({
-            let drain = drain.clone();
-            let shutdown = shutdown.clone();
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            sigint().await;
+            info!("SIGINT");
 
-            async move {
-                signal.await;
+            shutdown.trigger(ShutdownStage::Drain);
+        }
+    });
 
-                info!("Drain start");
-                _ = drain.trigger_shutdown(());
-                drain.wait_shutdown_complete().await;
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            shutdown.wait_triggered(ShutdownStage::Drain).await;
+            info!("Shutdown stage 'Drain' started");
+            shutdown.wait_complete(ShutdownStage::Drain).await;
+            info!("Shutdown stage 'Drain' finished");
+            shutdown.trigger(ShutdownStage::Final);
+        }
+    });
 
-                info!("Shutdown start");
-                _ = shutdown.trigger_shutdown(());
-            }
-        });
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            shutdown.wait_triggered(ShutdownStage::Final).await;
+            info!("Shutdown stage 'Cleanup' started");
+            shutdown.wait_complete(ShutdownStage::Final).await;
+            info!("Shutdown stage 'Cleanup' finished");
+        }
+    });
 
-        Shutdown { drain, shutdown }
-    }
-
-    pub fn is_drain_triggered(&self) -> bool {
-        self.drain.is_shutdown_triggered()
-    }
-
-    pub fn wait_drain_triggered(&self) -> ShutdownSignal<()> {
-        self.drain.wait_shutdown_triggered()
-    }
-
-    pub fn wait_drain_complete(&self) -> ShutdownComplete<()> {
-        self.drain.wait_shutdown_complete()
-    }
-
-    pub fn delay_drain_token(
-        &self,
-    ) -> Result<DelayShutdownToken<()>, ShutdownAlreadyCompleted<()>> {
-        self.drain.delay_shutdown_token()
-    }
-
-    pub fn wrap_delay_shutdown<F: Future>(
-        &self,
-        future: F,
-    ) -> Result<WrapDelayShutdown<(), F>, ShutdownAlreadyCompleted<()>> {
-        self.shutdown.wrap_delay_shutdown(future)
-    }
-
-    pub fn trigger_shutdown(&self) {
-        _ = self.drain.trigger_shutdown(());
-        _ = self.shutdown.trigger_shutdown(());
-    }
-
-    pub fn is_shutdown_triggered(&self) -> bool {
-        self.shutdown.is_shutdown_triggered()
-    }
-
-    pub fn wait_shutdown_triggered(&self) -> ShutdownSignal<()> {
-        self.shutdown.wait_shutdown_triggered()
-    }
-
-    pub fn wait_shutdown_complete(&self) -> ShutdownComplete<()> {
-        self.shutdown.wait_shutdown_complete()
-    }
+    shutdown
 }
 
-async fn shutdown_signal() {
+async fn sigint() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

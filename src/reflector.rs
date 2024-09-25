@@ -24,7 +24,7 @@ use crate::elbv2::apis::TargetGroupBinding;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, Config, ServiceRegistry};
+use crate::{instrumented, Config, ServiceRegistry, ShutdownStage};
 
 #[derive(Clone)]
 pub struct Stores {
@@ -158,7 +158,7 @@ where
             async move {
                 let mut results = Box::pin(
                     kube::runtime::reflector(writer, stream)
-                        .take_until(shutdown.wait_shutdown_triggered()),
+                        .take_until(shutdown.wait_triggered(ShutdownStage::Final)),
                 );
 
                 // Log until Event::InitDone

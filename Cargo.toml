@@ -8,10 +8,12 @@ rust-version = "1.79"
 
 [workspace]
 members = [
+    "crates/staged_shutdown",
     "crates/try_some"
 ]
 
 [dependencies]
+staged_shutdown = { path = "crates/staged_shutdown" }
 try_some = { path = "./crates/try_some" }
 
 # kubernetes libs
@@ -41,7 +43,6 @@ thiserror = "1.0.64"
 clap = { version = "4.5.18", features = ["derive"] }
 genawaiter = { git = "https://github.com/foriequal0/genawaiter", features = ["futures03"] }
 humantime = "2.1.0"
-async-shutdown = "0.2.2"
 serde = "1.0.210"
 serde_json = "1.0.128"
 json-patch = "2.0.0"
@@ -54,6 +55,8 @@ notify = "6.1.1"
 debounced = "0.2.0"
 hostname = "0.4.0"
 uuid = { version = "1.10.0", features = ["v4"] }
+strum = "0.26.3"
+strum_macros = "0.26.4"
 
 [dev-dependencies]
 tempfile = "3.12.0"

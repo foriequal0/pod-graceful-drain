@@ -17,6 +17,7 @@ use tracing::error;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
 use crate::webhooks::config::CertConfig;
+use crate::ShutdownStage;
 
 const TLS_CRT: &str = "tls.crt";
 const TLS_KEY: &str = "tls.key";
@@ -60,7 +61,7 @@ async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
         });
 
         let debounced = debounced(stream, Duration::from_secs(1));
-        debounced.take_until(shutdown.wait_shutdown_triggered())
+        debounced.take_until(shutdown.wait_triggered(ShutdownStage::Final))
     };
 
     spawn_service(shutdown, "certwatcher", {

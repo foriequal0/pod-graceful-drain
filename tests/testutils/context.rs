@@ -18,7 +18,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
-use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown};
+use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown, ShutdownStage};
 
 use crate::testutils::run_command::{get_command_output, run_command, CommandParams};
 
@@ -168,8 +168,8 @@ where
     })
     .await;
 
-    shutdown.trigger_shutdown();
-    shutdown.wait_shutdown_complete().await;
+    shutdown.trigger(ShutdownStage::Final);
+    shutdown.wait_complete(ShutdownStage::Final).await;
 
     let teardowns: Vec<_> = context.teardown.lock().unwrap().drain(..).collect();
     for teardown in teardowns.into_iter().rev() {

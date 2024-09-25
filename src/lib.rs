@@ -21,7 +21,7 @@ pub use crate::controller::start_controller;
 pub use crate::loadbalancing::LoadBalancingConfig;
 pub use crate::reflector::{start_reflectors, Stores};
 pub use crate::service_registry::ServiceRegistry;
-pub use crate::shutdown::Shutdown;
+pub use crate::shutdown::{create_shutdown, Shutdown, ShutdownStage};
 pub use crate::webhooks::{start_webhook, WebhookConfig};
 
 #[cfg(test)]

@@ -26,7 +26,7 @@ use crate::spawn_service::spawn_service;
 use crate::status::{
     is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
 };
-use crate::{instrumented, ServiceRegistry};
+use crate::{instrumented, ServiceRegistry, ShutdownStage};
 
 /// Start a controller that deletes deregistered pods.
 pub fn start_controller(
@@ -44,7 +44,7 @@ pub fn start_controller(
 
     let pods: Api<Pod> = api_resolver.all();
     let controller = Controller::new(pods, Config::default().labels(DRAINING_LABEL_KEY))
-        .graceful_shutdown_on(shutdown.wait_shutdown_triggered());
+        .graceful_shutdown_on(shutdown.wait_triggered(ShutdownStage::Final));
 
     let signal = service_registry.register("controller");
     spawn_service(shutdown, "controller", {
@@ -53,7 +53,7 @@ pub fn start_controller(
             signal.ready();
             controller
                 .run(reconcile, error_policy, context)
-                .take_until(shutdown.wait_shutdown_triggered())
+                .take_until(shutdown.wait_triggered(ShutdownStage::Final))
                 .for_each(log_reconcile_result)
                 .await
         }

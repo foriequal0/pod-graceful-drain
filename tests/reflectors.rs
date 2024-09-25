@@ -10,7 +10,8 @@ use kube::ResourceExt;
 
 use crate::testutils::context::{within_test_namespace, TestContext};
 
-use pod_graceful_drain::{start_reflectors, try_some, Config, Stores};
+use pod_graceful_drain::{start_reflectors, Config, Stores};
+use try_some::try_some;
 
 fn start_test_reflector(context: &TestContext) -> Stores {
     let config = Config {

@@ -42,7 +42,7 @@ pub use crate::webhooks::patch::patch_pod_isolate;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
 use crate::webhooks::report::{debug_report_for_ref, warn_report_for_ref};
 use crate::webhooks::try_bind::try_bind;
-use crate::{instrumented, LoadBalancingConfig, ServiceRegistry};
+use crate::{instrumented, LoadBalancingConfig, ServiceRegistry, ShutdownStage};
 
 /// Start an admission webhook that intercepts pod deletion, pod eviction requests.
 pub async fn start_webhook(
@@ -92,21 +92,18 @@ pub async fn start_webhook(
         let draining_graceful_period = config.delete_after;
 
         async move {
-            shutdown.wait_drain_triggered().await;
+            shutdown.wait_triggered(ShutdownStage::Drain).await;
             handle.graceful_shutdown(Some(draining_graceful_period));
-            shutdown.wait_drain_complete().await;
+            shutdown.wait_complete(ShutdownStage::Drain).await;
         }
     });
 
     let signal = service_registry.register("webhook");
     spawn_service(shutdown, "webhook", {
-        let shutdown = shutdown.clone();
-
-        async move {
-            let _drain_token = shutdown.delay_drain_token();
+        shutdown.wrap_delay(ShutdownStage::Drain, async move {
             signal.ready();
             server.await.unwrap();
-        }
+        })?
     })?;
 
     Ok(local_addr)
