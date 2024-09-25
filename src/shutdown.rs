@@ -5,6 +5,7 @@ use tracing::info;
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, EnumIter, Debug)]
 pub enum ShutdownStage {
+    PreStop,
     Drain,
     Final,
 }
@@ -20,6 +21,17 @@ pub fn create_shutdown() -> Shutdown {
             sigint().await;
             info!("SIGINT");
 
+            shutdown.trigger(ShutdownStage::PreStop);
+        }
+    });
+
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            shutdown.wait_triggered(ShutdownStage::PreStop).await;
+            info!("Shutdown stage 'PreStop' started");
+            shutdown.wait_complete(ShutdownStage::PreStop).await;
+            info!("Shutdown stage 'PreStop' finished");
             shutdown.trigger(ShutdownStage::Drain);
         }
     });
