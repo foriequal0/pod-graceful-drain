@@ -1,4 +1,4 @@
-FROM rust:1.79-slim-bookworm as builder
+FROM rust:1.84-slim-bookworm as builder
 RUN apt-get update && apt-get install -y git
 RUN mkdir /src
 WORKDIR /src

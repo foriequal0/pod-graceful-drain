@@ -15,7 +15,6 @@ async fn report(
     let recorder = Recorder::new(
         state.api_resolver.client.clone(),
         state.event_reporter.clone(),
-        reference,
     );
 
     // max limit of the note is 1KB
@@ -32,16 +31,16 @@ async fn report(
         note
     };
 
+    let event = Event {
+        type_,
+        action: action.to_string(),
+        reason: reason.to_string(),
+        note: Some(note),
+        secondary: None,
+    };
+
     // ignore the error of diagnostic events
-    let _ = recorder
-        .publish(Event {
-            type_,
-            action: action.to_string(),
-            reason: reason.to_string(),
-            note: Some(note),
-            secondary: None,
-        })
-        .await;
+    let _ = recorder.publish(&event, &reference).await;
 }
 
 pub async fn debug_report_for_ref(

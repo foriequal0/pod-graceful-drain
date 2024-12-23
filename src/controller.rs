@@ -93,7 +93,7 @@ async fn reconcile(
             let expire = (-remaining).to_std().expect("should be expired");
             if expire < CONTROLLER_EXCLUSIVE_DURATION && !context.loadbalancing.controls(&pod) {
                 // Let the original controller handle first.
-                let requeue_duration = rand::thread_rng().gen_range(
+                let requeue_duration = rand::rng().random_range(
                     CONTROLLER_EXCLUSIVE_DURATION
                         ..CONTROLLER_EXCLUSIVE_DURATION.add(CONTROLLER_TIMEOUT_JITTER),
                 );

@@ -5,7 +5,7 @@ use backoff::ExponentialBackoff;
 use chrono::{DateTime, SecondsFormat, Utc};
 use eyre::{eyre, Context, Result};
 use json_patch::{Patch, PatchOperation, TestOperation};
-use jsonptr::Pointer;
+use jsonptr::PointerBuf;
 use k8s_openapi::api::{core::v1::Pod, policy::v1::Eviction};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use k8s_openapi::serde::de::DeserializeOwned;
@@ -130,14 +130,14 @@ fn prepend_uid_and_resource_version_test(mut patch: Patch, pod: &Pod) -> Result<
     patch.0.insert(
         0,
         PatchOperation::Test(TestOperation {
-            path: Pointer::new(["metadata", "uid"]),
+            path: PointerBuf::from_tokens(["metadata", "uid"]),
             value: Value::String(uid),
         }),
     );
     patch.0.insert(
         1,
         PatchOperation::Test(TestOperation {
-            path: Pointer::new(["metadata", "resourceVersion"]),
+            path: PointerBuf::from_tokens(["metadata", "resourceVersion"]),
             value: Value::String(version),
         }),
     );

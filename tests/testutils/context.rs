@@ -22,7 +22,7 @@ use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown};
 
 use crate::testutils::run_command::{get_command_output, run_command, CommandParams};
 
-const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.30.2";
+const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.32.0";
 const DEFAULT_TEST_CLUSTER_NAME: &str = "test-pgd";
 const TEST_NAMESPACE_PREFIX: &str = "test";
 const TEST_NAMESPACE_LABEL_KEY: &str = "test-pgd-ns";
@@ -83,7 +83,7 @@ where
 
     let random_cluster_name = format!(
         "{DEFAULT_TEST_CLUSTER_NAME}-{}",
-        rand::thread_rng().gen_range(0..100000)
+        rand::rng().random_range(0..100000)
     );
     let kind_image = std::env::var("KIND_IMAGE").unwrap_or(DEFAULT_KIND_IMAGE.to_owned());
     let dummy_kubeconfig = NamedTempFile::new().unwrap();
@@ -233,7 +233,7 @@ async fn get_temp_kubeconfig_file_from_kind(context: &str) -> Result<NamedTempFi
 async fn create_random_namespace(config: &Config) -> Result<String> {
     let client = Client::try_from(config.clone())?;
     let api: Api<Namespace> = Api::all(client);
-    let random_id = rand::thread_rng().gen_range(1..1000000);
+    let random_id = rand::rng().random_range(1..1000000);
     let random_name = format!("{TEST_NAMESPACE_PREFIX}-{random_id}");
     let namespace = Namespace {
         metadata: ObjectMeta {

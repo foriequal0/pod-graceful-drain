@@ -4,57 +4,55 @@ description = "You don't need `lifecycle: { preStop: { exec: { command: [\"sleep
 authors = ["SeongChan Lee <foriequal@gmail.com>"]
 version = "0.1.0-rc.3"
 edition = "2021"
-rust-version = "1.79"
+rust-version = "1.81"
 
 [dependencies]
 # kubernetes libs
-kube = { version = "0.93.1", features = ["runtime", "admission"] }
-k8s-openapi = { version = "0.22.0", features = ["v1_30"] }
+kube = { version = "0.98.0", features = ["runtime", "admission"] }
+k8s-openapi = { version = "0.24.0", features = ["v1_32"] }
 
 # async runtime libs
-tokio = "1.39.2"
-futures = "0.3.30"
+tokio = "1.43.0"
+futures = "0.3.31"
 
 # webhook libs
-axum = "0.7.5"
+axum = "0.8.1"
 axum-server = { version = "0.7.1", features = ["tls-rustls-no-provider"] }
-tower = "0.4.13"
-rustls = { version = "0.23.12", default-features = false, features = ["ring"] }
-rustls-pemfile = "2.1.2"
+rustls = { version = "0.23.22", default-features = false, features = ["ring"] }
+rustls-pemfile = "2.2.0"
 
 # observability libs
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-tracing-error = "0.2.0"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-error = "0.2.1"
 eyre = "0.6.12"
 color-eyre = { version = "0.6.3", features = ["capture-spantrace"] }
-thiserror = "1.0.63"
+thiserror = "2.0.11"
 
 # auxilary libs
-clap = { version = "4.5.14", features = ["derive"] }
+clap = { version = "4.5.28", features = ["derive"] }
 genawaiter = { git = "https://github.com/foriequal0/genawaiter", features = ["futures03"] }
 humantime = "2.1.0"
 async-shutdown = "0.2.2"
-serde = "1.0.205"
-serde_json = "1.0.122"
-json-patch = "2.0.0"
-jsonptr = "0.4.7" # json-patch uses 0.4.x
-either = "1.13.0"
-chrono = "0.4.38"
+serde = "1.0.217"
+serde_json = "1.0.138"
+json-patch = "3.0.1"
+jsonptr = "0.6.3"
+chrono = "0.4.39"
 backoff = "0.4.0"
-rand = "0.8.5"
-notify = "6.1.1"
-debounced = "0.1.0"
+rand = "0.9.0"
+notify = "8.0.0"
+debounced = "0.2.0"
 hostname = "0.4.0"
-uuid = { version = "1.10.0", features = ["v4"] }
+uuid = { version = "1.13.1", features = ["v4"] }
 
 [dev-dependencies]
-tempfile = "3.12.0"
+tempfile = "3.16.0"
 serde_yaml = "0.9.34-deprecated"
-local-ip-address = "0.6.1"
+local-ip-address = "0.6.3"
 base64 = "0.22.1"
-rcgen = "0.13.1"
+rcgen = "0.13.2"
 
 [build-dependencies]
-anyhow = "1.0.86"
-vergen-gitcl = { version = "1.0.0", features = ["build", "rustc"] }
+anyhow = "1.0.95"
+vergen-gitcl = { version = "1.0.5", features = ["build", "rustc"] }

@@ -34,10 +34,12 @@ jobs:
       fail-fast: false
       matrix:
         kind_image:
-          - "v1.30.2"
-          - "v1.29.4"
-          - "v1.28.9"
-          - "v1.27.13"
+          - "v1.32.0"
+          - "v1.31.4"
+          - "v1.30.8"
+          - "v1.29.12"
+          - "v1.28.15"
+          - "v1.27.16"
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
@@ -96,10 +98,12 @@ jobs:
       fail-fast: false
       matrix:
         kind_image:
-          - "v1.30.2"
-          - "v1.29.4"
-          - "v1.28.9"
-          - "v1.27.13"
+          - "v1.32.0"
+          - "v1.31.4"
+          - "v1.30.8"
+          - "v1.29.12"
+          - "v1.28.15"
+          - "v1.27.16"
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
@@ -114,7 +118,7 @@ jobs:
           kind create cluster --image="$KIND_IMAGE"
       - uses: eifinger/setup-rye@v4
         with:
-          version: '0.37.0'
+          version: '0.43.0'
       - uses: actions/download-artifact@v4
         with:
           name: pod-graceful-drain.tar
