@@ -1,6 +1,7 @@
 /.github/
 /charts/
 /tests/
+/tests-integ/
 /.gitignore
 /LICENSE
 /README.md
@@ -10,7 +11,8 @@
 /requirements-dev.lock
 /skaffold.yaml
 
-/target/
 /.venv/
+/target/
+*.egg-info
 
 /.idea/

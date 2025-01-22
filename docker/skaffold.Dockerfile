@@ -12,6 +12,7 @@ COPY ./Cargo.* /src/
 COPY build.rs /src/
 RUN mkdir src && \
     echo 'fn main() { println!("Hello, world!"); }' > src/main.rs && \
+    cargo fetch && \
     cargo build && \
     rm -rf src
 

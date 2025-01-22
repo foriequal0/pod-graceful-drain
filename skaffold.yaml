@@ -5,7 +5,7 @@ metadata:
   name: pod-graceful-drain
 build:
   artifacts:
-    - image: ghcr.io/foriequal0/pod-graceful-drain
+    - image: localhost/pod-graceful-drain
       docker:
         dockerfile: docker/skaffold.Dockerfile
       context: .

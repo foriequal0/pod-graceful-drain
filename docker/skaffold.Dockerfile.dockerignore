@@ -1,7 +1,9 @@
 /.git/
+
 /.github/
 /charts/
 /tests/
+/tests-integ/
 /.gitignore
 /LICENSE
 /README.md
@@ -13,5 +15,6 @@
 
 /.venv/
 /target/
+*.egg-info
 
 /.idea/
