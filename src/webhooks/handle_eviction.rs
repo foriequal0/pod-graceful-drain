@@ -9,6 +9,7 @@ use kube::{Api, ResourceExt};
 
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::status::{is_404_not_found_error, is_410_gone_error};
 use crate::utils::{get_object_ref_from_name, to_delete_params};
 use crate::webhooks::patch::make_patch_eviction_to_dry_run;
 use crate::webhooks::report::{debug_report_for, report_for};
@@ -81,9 +82,23 @@ pub async fn eviction_handler(
             }
 
             let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
-            check_eviction_permission(&state.api_resolver, eviction, user_info)
-                .await
-                .context("checking permission")?;
+
+            if let EvictionPermissionCheckResult::Gone =
+                check_eviction_permission(&state.api_resolver, eviction, user_info)
+                    .await
+                    .context("checking permission")?
+            {
+                debug_report_for(
+                    state,
+                    &pod,
+                    "AllowDeletion",
+                    "Gone",
+                    "Pod is already gone".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
                 &pod,
@@ -171,11 +186,17 @@ pub async fn eviction_handler(
     Ok(InterceptResult::Patch(Box::new(response)))
 }
 
+#[must_use]
+enum EvictionPermissionCheckResult {
+    Ok,
+    Gone,
+}
+
 async fn check_eviction_permission(
     api_resolver: &ApiResolver,
     eviction: &Eviction,
     user_info: &UserInfo,
-) -> Result<()> {
+) -> Result<EvictionPermissionCheckResult> {
     let api: Api<Pod> = api_resolver
         .impersonate_as(user_info.username.clone(), user_info.groups.clone())?
         .all();
@@ -191,6 +212,11 @@ async fn check_eviction_permission(
         },
     };
 
-    api.evict(&name, &evict_params).await?;
-    Ok(())
+    match api.evict(&name, &evict_params).await {
+        Ok(_) => Ok(EvictionPermissionCheckResult::Ok),
+        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+            Ok(EvictionPermissionCheckResult::Gone)
+        }
+        Err(err) => Err(err.into()),
+    }
 }

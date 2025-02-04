@@ -144,6 +144,12 @@ async fn log_reconcile_result(
                 ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
                     debug!(%object_ref, ?err, "conflict");
                 }
+                ReconcileError::KubeError(err)
+                    if is_404_not_found_error(&err) || is_410_gone_error(&err) =>
+                {
+                    // reconciler is late
+                    debug!(%object_ref, ?err, "gone");
+                }
                 _ => error!(%object_ref, ?err, "error"),
             },
             Err(err) => {

@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::status::{is_404_not_found_error, is_410_gone_error};
 use crate::utils::to_delete_params;
 use crate::webhooks::report::{debug_report_for, report_for};
 use crate::webhooks::{patch_pod_isolate, AppState, InterceptResult};
@@ -70,9 +71,23 @@ pub async fn delete_handler(
             }
 
             let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
-            check_delete_permission(&state.api_resolver, pod, &request.options, user_info)
-                .await
-                .context("checking permission")?;
+
+            if let DeletePermissionCheckResult::Gone =
+                check_delete_permission(&state.api_resolver, pod, &request.options, user_info)
+                    .await
+                    .context("checking permission")?
+            {
+                debug_report_for(
+                    state,
+                    pod,
+                    "AllowDeletion",
+                    "Gone",
+                    "Pod is already gone".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
                 pod,
@@ -155,12 +170,18 @@ pub async fn delete_handler(
     }
 }
 
+#[must_use]
+enum DeletePermissionCheckResult {
+    Ok,
+    Gone,
+}
+
 async fn check_delete_permission(
     api_resolver: &ApiResolver,
     pod: &Pod,
     raw_options: &Option<RawExtension>,
     user_info: &UserInfo,
-) -> Result<()> {
+) -> Result<DeletePermissionCheckResult> {
     let api = api_resolver
         .impersonate_as(user_info.username.clone(), user_info.groups.clone())?
         .api_for(pod);
@@ -173,6 +194,11 @@ async fn check_delete_permission(
 
     let name = pod.name_any();
     let delete_params = to_delete_params(delete_options, true)?;
-    api.delete(&name, &delete_params).await?;
-    Ok(())
+    match api.delete(&name, &delete_params).await {
+        Ok(_) => Ok(DeletePermissionCheckResult::Ok),
+        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+            Ok(DeletePermissionCheckResult::Gone)
+        }
+        Err(err) => Err(err.into()),
+    }
 }
