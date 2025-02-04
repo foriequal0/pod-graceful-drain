@@ -197,6 +197,9 @@ async fn check_eviction_permission(
     eviction: &Eviction,
     user_info: &UserInfo,
 ) -> Result<EvictionPermissionCheckResult> {
+    // we might've checked it using `SubjectAccessReview`,
+    // but there might be other custom webhooks that implements custom access control.
+    // so we dry-run delete to check them.
     let api: Api<Pod> = api_resolver
         .impersonate_as(user_info.username.clone(), user_info.groups.clone())?
         .all();
