@@ -35,16 +35,6 @@ macro_rules! kubectl {
     ($ctx:expr, [$($arg:tt)*]) => {
         $crate::testutils::operations::kubectl($ctx, &[$($arg)*], None).await
     };
-
-    ($ctx:expr, [$($arg:tt)*] <<< $yaml:expr $(,)*) => {{
-        let yaml = format!($yaml);
-        $crate::testutils::operations::kubectl($ctx, &[$($arg)*], Some(yaml.as_bytes())).await
-    }};
-
-    ($ctx:expr, [$($arg:tt)*] <<< $yaml:expr, $($tt:tt)*) => {{
-        let yaml = format!($yaml, $($tt)*);
-        $crate::testutils::operations::kubectl($ctx, &[$($arg)*], Some(yaml.as_bytes())).await
-    }};
 }
 
 pub async fn apply<K>(context: &TestContext, res: &K) -> Result<K>

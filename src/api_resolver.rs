@@ -58,18 +58,6 @@ impl ApiResolver {
         }
     }
 
-    pub fn default_namespaced<K>(&self) -> Api<K>
-    where
-        K: Resource<Scope = NamespaceResourceScope>,
-        K::DynamicType: Default,
-    {
-        if let Some(ns) = self.namespace.as_ref() {
-            Api::namespaced(self.client.clone(), ns)
-        } else {
-            Api::default_namespaced(self.client.clone())
-        }
-    }
-
     pub fn api_for<K>(&self, res: &K) -> Api<K>
     where
         K: Resource<Scope = NamespaceResourceScope>,
