@@ -175,12 +175,6 @@ async fn should_intercept_eviction_by_kubectl_drain() {
         };
         setup(&context, config).await;
 
-        // forcefully place Pod/some-pod to worker1
-        kubectl!(
-            &context,
-            ["cordon", &format!("{}-worker2", &context.cluster_name)]
-        );
-
         apply_yaml!(
             &context,
             Pod,
@@ -190,10 +184,12 @@ metadata:
   labels:
     app: test
 spec:
+  nodeName: {}-worker
   containers:
   - name: app
     image: public.ecr.aws/docker/library/busybox
-    command: ["sleep", "9999"]"#
+    command: ["sleep", "9999"]"#,
+            &context.cluster_name
         );
 
         apply_yaml!(
@@ -230,11 +226,6 @@ spec:
         );
 
         kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
-
-        kubectl!(
-            &context,
-            ["uncordon", &format!("{}-worker2", &context.cluster_name)]
-        );
 
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
         let context = Arc::new(context);
@@ -338,12 +329,6 @@ async fn should_intercept_deletion_by_kubectl_drain_disable_eviction() {
         };
         setup(&context, config).await;
 
-        // forcefully place Pod/some-pod to worker1
-        kubectl!(
-            &context,
-            ["cordon", &format!("{}-worker2", &context.cluster_name)]
-        );
-
         apply_yaml!(
             &context,
             Pod,
@@ -353,10 +338,12 @@ metadata:
   labels:
     app: test
 spec:
+  nodeName: {}-worker
   containers:
   - name: app
     image: public.ecr.aws/docker/library/busybox
-    command: ["sleep", "9999"]"#
+    command: ["sleep", "9999"]"#,
+            &context.cluster_name
         );
 
         apply_yaml!(
@@ -393,11 +380,6 @@ spec:
         );
 
         kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
-
-        kubectl!(
-            &context,
-            ["uncordon", &format!("{}-worker2", &context.cluster_name)]
-        );
 
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
         let context = Arc::new(context);
