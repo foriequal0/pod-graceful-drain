@@ -13,7 +13,7 @@ use super::context::TestContext;
 use super::run_command::run_command;
 use crate::testutils::run_command::CommandParams;
 
-pub async fn kubectl<'a>(context: &'a TestContext, args: &[&str], stdin: Option<&[u8]>) {
+pub async fn kubectl(context: &TestContext, args: &[&str], stdin: Option<&[u8]>) {
     let kubectl = std::env::var("KUBECTL").unwrap_or("kubectl".to_owned());
     run_command(&CommandParams {
         command: &kubectl,
