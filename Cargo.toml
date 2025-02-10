@@ -45,6 +45,7 @@ notify = "8.0.0"
 debounced = "0.2.0"
 hostname = "0.4.0"
 uuid = { version = "1.13.1", features = ["v4"] }
+percent-encoding = "2.3.1"
 
 [dev-dependencies]
 tempfile = "3.16.0"

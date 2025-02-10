@@ -1753,6 +1753,7 @@ dependencies = [
  "kube",
  "local-ip-address",
  "notify",
+ "percent-encoding",
  "rand 0.9.0",
  "rcgen",
  "rustls",
