@@ -232,7 +232,15 @@ spec:
         path: /"#
         );
 
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         let context = Arc::new(context);
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
@@ -365,7 +373,15 @@ spec:
         path: /"#
         );
 
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         let context = Arc::new(context);
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;

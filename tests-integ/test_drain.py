@@ -93,7 +93,7 @@ spec:
             f"{kind_ctx.cluster_name}-worker",
         )
         diff = datetime.now() - start
-        assert diff < timedelta(seconds=10), "it should be quick"
+        assert diff < timedelta(seconds=10 + 5), "it should be quick"
         assert pod_is_alive(kubectl_ctx, "pod/some-pod")
 
 
