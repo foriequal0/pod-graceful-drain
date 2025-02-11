@@ -178,3 +178,8 @@ spec:
                 kubectl_ctx, "pod/some-pod"
             ), "pod should be alive for approx. 20s"
             time.sleep(1)
+
+        time.sleep(20)
+        assert not pod_is_alive(
+            kubectl_ctx, "pod/some-pod"
+        ), "pod should be dead by now"
