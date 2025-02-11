@@ -3,6 +3,7 @@ mod config;
 mod consts;
 mod controller;
 mod elbv2;
+mod impersonate;
 mod loadbalancing;
 mod pod_draining_info;
 mod pod_evict_params;

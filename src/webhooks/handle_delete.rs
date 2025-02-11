@@ -4,10 +4,12 @@ use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use k8s_openapi::apimachinery::pkg::runtime::RawExtension;
+use kube::api::Request;
 use kube::core::admission::AdmissionRequest;
 use kube::ResourceExt;
 use serde::Deserialize;
 
+use crate::impersonate::impersonate;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
 use crate::status::{is_404_not_found_error, is_410_gone_error};
@@ -185,7 +187,7 @@ async fn check_delete_permission(
     // we might've checked it using `SubjectAccessReview`,
     // but there might be other custom webhooks that implements custom access control.
     // so we dry-run delete to check them.
-    let api = api_resolver.impersonate_as(user_info)?.api_for(pod);
+    let api = api_resolver.api_for(pod);
 
     let delete_options = if let Some(delete_options) = raw_options {
         DeleteOptions::deserialize(&delete_options.0)?
@@ -195,7 +197,14 @@ async fn check_delete_permission(
 
     let name = pod.name_any();
     let delete_params = to_delete_params(delete_options, true)?;
-    match api.delete(&name, &delete_params).await {
+
+    let mut req = Request::new(api.resource_url())
+        .delete(&name, &delete_params)
+        .context("building request")?;
+    req.extensions_mut().insert("delete-impersonated"); // for otel trace
+    impersonate(&mut req, user_info)?;
+
+    match api.into_client().request_status::<Pod>(req).await {
         Ok(_) => Ok(DeletePermissionCheckResult::Ok),
         Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
             Ok(DeletePermissionCheckResult::Gone)
