@@ -93,7 +93,7 @@ async fn reconcile(
             let expire = (-remaining).to_std().expect("should be expired");
             if expire < CONTROLLER_EXCLUSIVE_DURATION && !context.loadbalancing.controls(&pod) {
                 // Let the original controller handle first.
-                let requeue_duration = rand::thread_rng().gen_range(
+                let requeue_duration = rand::rng().random_range(
                     CONTROLLER_EXCLUSIVE_DURATION
                         ..CONTROLLER_EXCLUSIVE_DURATION.add(CONTROLLER_TIMEOUT_JITTER),
                 );
@@ -143,6 +143,12 @@ async fn log_reconcile_result(
             Err(controller::Error::ReconcilerFailed(err, object_ref)) => match err {
                 ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
                     debug!(%object_ref, ?err, "conflict");
+                }
+                ReconcileError::KubeError(err)
+                    if is_404_not_found_error(&err) || is_410_gone_error(&err) =>
+                {
+                    // reconciler is late
+                    debug!(%object_ref, ?err, "gone");
                 }
                 _ => error!(%object_ref, ?err, "error"),
             },

@@ -13,4 +13,10 @@ requires-python = ">= 3.8"
 managed = true
 dev-dependencies = [
     "pytest>=8.3.1",
+    "black>=25.1.0",
+    "boto3>=1.36.13",
+    "click>=8.1.8",
 ]
+
+[tool.rye.scripts]
+test-manual-eks = "python tests-integ/test-manual-eks.py"

@@ -29,31 +29,33 @@ jobs:
         if: always()
 
   test:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         kind_image:
-          - "v1.30.2"
-          - "v1.29.4"
-          - "v1.28.9"
-          - "v1.27.13"
+          - "v1.32.0"
+          - "v1.31.4"
+          - "v1.30.8"
+          - "v1.29.12"
+          - "v1.28.15"
+          - "v1.27.16"
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
-    env:
-      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ""
-      - name: Setup kind
-        run: |
-          kind create cluster --image="$KIND_IMAGE" --name test-pgd
+      - uses: helm/kind-action@v1
+        with:
+          node_image: kindest/node:${{matrix.kind_image}}
+          cluster_name: 'test-pgd'
       - run: cargo fetch --verbose
       - run: cargo test --all-features
-        timeout-minutes: 5
+        timeout-minutes: 10
 
   tests-result:
     runs-on: ubuntu-latest
@@ -81,55 +83,57 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           docker build --file docker/build.Dockerfile \
-            --tag "pod-graceful-drain:latest" \
+            --tag "localhost/pod-graceful-drain:latest" \
             .
-      - run: docker image save --output pod-graceful-drain.tar pod-graceful-drain
+      - run: docker image save --output pod-graceful-drain.tar localhost/pod-graceful-drain
       - uses: actions/upload-artifact@v4
         with:
           name: pod-graceful-drain.tar
           path: ./pod-graceful-drain.tar
 
   smoke-test:
-    timeout-minutes: 3
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         kind_image:
-          - "v1.30.2"
-          - "v1.29.4"
-          - "v1.28.9"
-          - "v1.27.13"
+          - "v1.32.0"
+          - "v1.31.4"
+          - "v1.30.8"
+          - "v1.29.12"
+          - "v1.28.15"
+          - "v1.27.16"
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
-    env:
-      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     needs:
       - build-image
     steps:
       - uses: actions/checkout@v4
-      - name: Setup kind
-        run: |
-          kind create cluster --image="$KIND_IMAGE"
+      - uses: helm/kind-action@v1
+        with:
+          node_image: kindest/node:${{matrix.kind_image}}
+          cluster_name: 'test-pgd'
       - uses: eifinger/setup-rye@v4
         with:
-          version: '0.37.0'
+          version: '0.43.0'
       - uses: actions/download-artifact@v4
         with:
           name: pod-graceful-drain.tar
       - run: |
           docker image load --input pod-graceful-drain.tar
-          kind load docker-image pod-graceful-drain:latest
+          kind load docker-image localhost/pod-graceful-drain:latest --name=test-pgd
       - run: |
           helm install pod-graceful-drain charts/pod-graceful-drain \
             --create-namespace --namespace pod-graceful-drain \
-            --set image.repository=pod-graceful-drain --set image.tag=latest \
+            --set image.repository=localhost/pod-graceful-drain --set image.tag=latest \
             --set experimentalGeneralIngress=true \
             --set logLevel=info\\,pod_graceful_drain=trace \
             --wait=true --timeout=1m
       - run: rye sync
       - run: rye test
+        timeout-minutes: 10
       - name: Dump
         if: always()
         run: |

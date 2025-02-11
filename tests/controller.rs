@@ -44,7 +44,15 @@ spec:
     image: public.ecr.aws/docker/library/busybox
     command: ["sleep", "9999"]"#
         );
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         patch_drain_until(&context, "some-pod", TimeDelta::seconds(10), None).await;
 
@@ -75,7 +83,15 @@ spec:
     image: public.ecr.aws/docker/library/busybox
     command: ["sleep", "9999"]"#
         );
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         patch_drain_until(
             &context,
@@ -112,7 +128,15 @@ spec:
     image: public.ecr.aws/docker/library/busybox
     command: ["sleep", "9999"]"#
         );
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         patch_drain_until(&context, "some-pod", TimeDelta::seconds(5), None).await;
 
@@ -143,7 +167,15 @@ spec:
     image: public.ecr.aws/docker/library/busybox
     command: ["sleep", "9999"]"#
         );
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         patch_drain_until(
             &context,

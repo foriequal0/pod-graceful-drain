@@ -15,7 +15,7 @@ pub async fn try_bind(bind_config: &BindConfig) -> Result<TcpListener> {
         BindConfig::RandomForTest => {
             let mut retry = 0;
             loop {
-                let random_port = rand::thread_rng().gen_range(49152..=65535);
+                let random_port = rand::rng().random_range(49152..=65535);
                 let bind_addr = SocketAddr::from(([0, 0, 0, 0], random_port));
 
                 match TcpListener::bind(bind_addr).await {

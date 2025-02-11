@@ -11,7 +11,8 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::api::{ListParams, ObjectList};
+use kube::api::{EvictParams, ListParams, ObjectList};
+use kube::Api;
 use rcgen::generate_simple_self_signed;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use uuid::Uuid;
@@ -231,7 +232,15 @@ spec:
         path: /"#
         );
 
-        kubectl!(&context, ["wait", "pod/some-pod", "--for=condition=Ready"]);
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
 
         let context = Arc::new(context);
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
@@ -298,6 +307,125 @@ spec:
 
         first.await.unwrap();
         second.await.unwrap();
+
+        assert!(
+            pod_is_deleted_within(&context, "some-pod", Duration::from_secs(20)).await,
+            "pod is eventually deleted"
+        );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn should_delay_deletion_by_evict() {
+    within_test_namespace(|context| async move {
+        let config = Config {
+            delete_after: DELETE_AFTER,
+            experimental_general_ingress: true,
+        };
+        setup(&context, config).await;
+
+        apply_yaml!(
+            &context,
+            Pod,
+            r#"
+metadata:
+  name: some-pod
+  labels:
+    app: test
+spec:
+  containers:
+  - name: app
+    image: public.ecr.aws/docker/library/busybox
+    command: ["sleep", "9999"]"#
+        );
+
+        apply_yaml!(
+            &context,
+            Service,
+            r#"
+metadata:
+  name: some-service
+spec:
+  ports:
+  - name: http
+    port: 80
+  selector:
+    app: test"#
+        );
+
+        apply_yaml!(
+            &context,
+            Ingress,
+            r#"
+metadata:
+  name: some-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: some-service
+            port:
+              name: http
+        pathType: Exact
+        path: /"#
+        );
+
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
+
+        let context = Arc::new(context);
+        let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
+
+        {
+            let api: Api<Pod> = context.api_resolver.all();
+            _ = api.evict("some-pod", &EvictParams::default()).await;
+        }
+
+        assert!(
+            event_tracker
+                .issued_soon("InterceptEviction", "Drain")
+                .await
+        );
+
+        assert_eq!(
+            Some(true),
+            {
+                let pod: Pod = context.api_resolver.all().get("some-pod").await.unwrap();
+                let labels = pod.metadata.labels.as_ref();
+                let annotations = pod.metadata.annotations.as_ref();
+                labels
+                    .map(|l| l.contains_key("pod-graceful-drain/draining"))
+                    .and(annotations.map(|a| a.contains_key("pod-graceful-drain/drain-until")))
+            },
+            "pod should've been patched"
+        );
+        assert!(
+            {
+                let es_list: ObjectList<EndpointSlice> = context
+                    .api_resolver
+                    .all()
+                    .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
+                    .await
+                    .unwrap();
+                es_list.items.iter().all(|es| es.endpoints.is_empty())
+            },
+            "pod should've been removed from the endpointslices"
+        );
+
+        assert!(
+            pod_is_alive_for(&context, "some-pod", DELETE_DELAY_APPROX).await,
+            "pod is alive for approx. 10s"
+        );
 
         assert!(
             pod_is_deleted_within(&context, "some-pod", Duration::from_secs(20)).await,

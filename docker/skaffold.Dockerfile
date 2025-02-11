@@ -1,4 +1,4 @@
-FROM rust:1.79-slim-bookworm AS cache
+FROM rust:1.84-slim-bookworm AS cache
 
 # prepare git cli
 RUN apt-get update && apt-get install -y git
@@ -12,6 +12,7 @@ COPY ./Cargo.* /src/
 COPY build.rs /src/
 RUN mkdir src && \
     echo 'fn main() { println!("Hello, world!"); }' > src/main.rs && \
+    cargo fetch && \
     cargo build && \
     rm -rf src
 
