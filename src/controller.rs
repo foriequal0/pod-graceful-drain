@@ -14,7 +14,7 @@ use kube::runtime::{controller, watcher, Controller};
 use kube::{Api, ResourceExt};
 use rand::Rng;
 use thiserror::Error;
-use tracing::{debug, error, info, span, trace, Level};
+use tracing::{debug, error, info, span, trace, warn, Level};
 
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
@@ -108,9 +108,15 @@ async fn reconcile(
                 delete_pod(&context.api_resolver, &pod).await
             };
 
-            if let Err(err) = result {
-                if is_transient_error(&err) {
+            match result {
+                Ok(_) => {}
+                Err(err) if is_transient_error(&err) => {
+                    let object_ref = ObjectRef::from_obj(pod.as_ref());
+                    warn!(%object_ref, ?err, "retry transient error");
                     return Ok(Action::requeue(DEFAULT_TRANSIENT_ERROR_RECONCILE));
+                }
+                Err(err) => {
+                    return Err(err.into());
                 }
             }
         };

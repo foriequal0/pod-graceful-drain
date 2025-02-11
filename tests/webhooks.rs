@@ -15,9 +15,10 @@ use kube::api::{EvictParams, ListParams, ObjectList};
 use kube::Api;
 use rcgen::generate_simple_self_signed;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use uuid::Uuid;
 
-use pod_graceful_drain::{Config, LoadBalancingConfig, ServiceRegistry, WebhookConfig};
+use pod_graceful_drain::{
+    Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
+};
 
 use crate::testutils::context::{within_test_namespace, TestContext};
 use crate::testutils::event_tracker::EventTracker;
@@ -46,7 +47,8 @@ async fn setup(context: &TestContext, config: Config) {
     let service_domain = install_test_host_service(context).await;
     let (ca_bundle, cert, key_pair) = generate_self_signed_cert(service_domain).await.unwrap();
     let service_registry = ServiceRegistry::default();
-    let loadbalancing = LoadBalancingConfig::new(Uuid::nil());
+    let downward_api = DownwardAPI::default();
+    let loadbalancing = LoadBalancingConfig::with_str("test");
 
     pod_graceful_drain::start_controller(
         &context.api_resolver,
@@ -71,6 +73,7 @@ async fn setup(context: &TestContext, config: Config) {
         stores,
         &service_registry,
         &loadbalancing,
+        &downward_api,
         &context.shutdown,
     )
     .await
@@ -524,6 +527,16 @@ async fn should_allow_deletion_when_pod_is_not_exposed() {
             ]
         );
 
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
+
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(1)).await;
         kubectl!(&context, ["delete", "pod", "some-pod"]);
         assert!(
@@ -553,6 +566,16 @@ async fn should_allow_deletion_when_dry_run() {
                 "--",
                 "sleep",
                 "9999"
+            ]
+        );
+
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
             ]
         );
 

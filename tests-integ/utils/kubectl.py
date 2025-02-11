@@ -21,6 +21,11 @@ class KubectlContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
+            # dump logs
+            kubectl(
+                self, "logs", "deployment/pod-graceful-drain", "--all-pods", "--prefix"
+            )
+
             return
 
         kubectl(self, "delete", "namespace", self.namespace, "--ignore-not-found")

@@ -1,18 +1,20 @@
+use std::process::ExitCode;
+use std::time::Duration;
+
 use clap::Parser;
 use color_eyre::config::Frame;
 use eyre::Result;
-use std::process::ExitCode;
-use std::time::Duration;
 use tokio::select;
 use tracing::{debug, error, info, Level};
 use tracing_error::ErrorLayer;
+use tracing_subscriber::filter::FromEnvError;
+use tracing_subscriber::fmt::Layer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::Directive, EnvFilter};
-use uuid::Uuid;
 
 use pod_graceful_drain::{
-    start_controller, start_reflectors, start_webhook, ApiResolver, Config, LoadBalancingConfig,
-    ServiceRegistry, Shutdown, WebhookConfig,
+    start_controller, start_reflectors, start_webhook, ApiResolver, Config, DownwardAPI,
+    LoadBalancingConfig, ServiceRegistry, Shutdown, WebhookConfig,
 };
 
 #[tokio::main(flavor = "current_thread")]
@@ -45,11 +47,13 @@ async fn main() -> Result<ExitCode> {
 }
 
 async fn try_main(config: Config, shutdown: &Shutdown) -> Result<()> {
-    let instance_id = Uuid::new_v4();
-    info!(%instance_id, "Starting");
+    let downward_api = DownwardAPI::from_env();
     let api_resolver = ApiResolver::try_new(kube::Config::infer().await?)?;
     let service_registry = ServiceRegistry::default();
-    let loadbalancing = LoadBalancingConfig::new(instance_id);
+    let loadbalancing = LoadBalancingConfig::with_pod_uid(downward_api.pod_uid.clone());
+
+    info!("Starting");
+
     start_controller(&api_resolver, &service_registry, &loadbalancing, shutdown)?;
     let reflectors = start_reflectors(&api_resolver, &config, &service_registry, shutdown)?;
     start_webhook(
@@ -59,6 +63,7 @@ async fn try_main(config: Config, shutdown: &Shutdown) -> Result<()> {
         reflectors,
         &service_registry,
         &loadbalancing,
+        &downward_api,
         shutdown,
     )
     .await?;
@@ -91,18 +96,26 @@ fn selfish_frame_filter(frames: &mut Vec<&Frame>) {
 }
 
 fn init_tracing_subscriber() -> Result<()> {
-    let filter = EnvFilter::builder()
-        .with_default_directive(Directive::from(Level::INFO))
-        .from_env()?;
-
-    let fmt = tracing_subscriber::fmt::layer().with_filter(filter);
-
     tracing_subscriber::registry()
-        .with(fmt)
-        .with(ErrorLayer::default())
+        .with({
+            let layer = Layer::default();
+            let filter = env_filter()?;
+            layer.with_filter(filter)
+        })
+        .with({
+            let layer = ErrorLayer::default();
+            let filter = env_filter()?;
+            layer.with_filter(filter)
+        })
         .try_init()?;
 
-    Ok(())
+    return Ok(());
+
+    fn env_filter() -> Result<EnvFilter, FromEnvError> {
+        EnvFilter::builder()
+            .with_default_directive(Directive::from(Level::INFO))
+            .from_env()
+    }
 }
 
 fn install_color_eyre() -> Result<()> {

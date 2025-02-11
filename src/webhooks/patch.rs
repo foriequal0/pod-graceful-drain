@@ -224,7 +224,7 @@ fn make_patch_pod_isolate(
     fn set_controller_annotation(pod: &mut Pod, loadbalancing: &LoadBalancingConfig) {
         pod.annotations_mut().insert(
             String::from(DRAIN_CONTROLLER_ANNOTATION_KEY),
-            loadbalancing.get_id(),
+            loadbalancing.get_id().to_owned(),
         );
     }
 
@@ -258,7 +258,6 @@ mod tests {
 
     use chrono::DateTime;
     use serde_json::{json, Value};
-    use uuid::Uuid;
 
     macro_rules! from_json {
         ($($json:tt)+) => {
@@ -297,7 +296,7 @@ mod tests {
         let drain_until = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        let loadbalancing = LoadBalancingConfig::new(Uuid::nil());
+        let loadbalancing = LoadBalancingConfig::with_str("00000000-0000-0000-0000-000000000000");
         let patch = make_patch_pod_isolate(&pod, drain_until, None, &loadbalancing).unwrap();
 
         let applied = apply(&pod, &patch).unwrap();
@@ -340,7 +339,7 @@ mod tests {
         let drain_until = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
             .unwrap()
             .with_timezone(&Utc);
-        let loadbalancing = LoadBalancingConfig::new(Uuid::nil());
+        let loadbalancing = LoadBalancingConfig::with_str("00000000-0000-0000-0000-000000000000");
         let patch = make_patch_pod_isolate(&pod, drain_until, None, &loadbalancing).unwrap();
 
         assert_eq!(
