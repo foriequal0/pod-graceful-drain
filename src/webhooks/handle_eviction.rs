@@ -61,13 +61,13 @@ pub async fn eviction_handler(
     let draining = get_pod_draining_info(&pod);
     match draining {
         PodDrainingInfo::None => {
-            if !is_pod_exposed(&state.config, &state.stores, &pod) {
+            if pod.metadata.deletion_timestamp.is_some() {
                 debug_report_for(
                     state,
                     &pod,
                     "AllowEviction",
-                    "NotExposed",
-                    "Eviction is allowed because the pod is not exposed".to_string(),
+                    "AlreadyDeleted",
+                    "Pod already have 'deletionTimestamp' on it".to_string(),
                 )
                 .await;
                 return Ok(InterceptResult::Allow);
@@ -80,6 +80,18 @@ pub async fn eviction_handler(
                     "AllowEviction",
                     "NotReady",
                     "Eviction is allowed because the pod is not ready".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
+            if !is_pod_exposed(&state.config, &state.stores, &pod) {
+                debug_report_for(
+                    state,
+                    &pod,
+                    "AllowEviction",
+                    "NotExposed",
+                    "Eviction is allowed because the pod is not exposed".to_string(),
                 )
                 .await;
                 return Ok(InterceptResult::Allow);
@@ -162,18 +174,6 @@ pub async fn eviction_handler(
                 ),
             )
             .await;
-        }
-        PodDrainingInfo::Deleted => {
-            debug_report_for(
-                state,
-                &pod,
-                "AllowEviction",
-                "AlreadyDeleted",
-                "Pod already have 'deletionTimestamp' on it".to_string(),
-            )
-            .await;
-
-            return Ok(InterceptResult::Allow);
         }
         PodDrainingInfo::DrainDisabled => {
             debug_report_for(

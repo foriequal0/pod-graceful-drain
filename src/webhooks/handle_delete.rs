@@ -46,15 +46,16 @@ pub async fn delete_handler(
         .as_ref()
         .ok_or(eyre!("old_object for validation is missing"))?;
 
-    match get_pod_draining_info(pod) {
+    let draining = get_pod_draining_info(pod);
+    match draining {
         PodDrainingInfo::None => {
-            if !is_pod_exposed(&state.config, &state.stores, pod) {
+            if pod.metadata.deletion_timestamp.is_some() {
                 debug_report_for(
                     state,
                     pod,
                     "AllowDeletion",
-                    "NotExposed",
-                    "Deletion is allowed because the pod is not exposed".to_string(),
+                    "AlreadyDeleted",
+                    "Pod already have 'deletionTimestamp' on it".to_string(),
                 )
                 .await;
                 return Ok(InterceptResult::Allow);
@@ -67,6 +68,18 @@ pub async fn delete_handler(
                     "AllowDeletion",
                     "NotReady",
                     "Deletion is allowed because the pod is not ready".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
+            if !is_pod_exposed(&state.config, &state.stores, pod) {
+                debug_report_for(
+                    state,
+                    pod,
+                    "AllowDeletion",
+                    "NotExposed",
+                    "Deletion is allowed because the pod is not exposed".to_string(),
                 )
                 .await;
                 return Ok(InterceptResult::Allow);
@@ -154,18 +167,6 @@ pub async fn delete_handler(
 
                 Ok(InterceptResult::Allow)
             }
-        }
-        PodDrainingInfo::Deleted => {
-            debug_report_for(
-                state,
-                pod,
-                "AllowDeletion",
-                "AlreadyDeleted",
-                "Pod already have 'deletionTimestamp' on it".to_string(),
-            )
-            .await;
-
-            Ok(InterceptResult::Allow)
         }
         PodDrainingInfo::DrainDisabled => {
             debug_report_for(

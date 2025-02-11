@@ -8,16 +8,11 @@ use crate::consts::{DRAINING_LABEL_KEY, DRAIN_UNTIL_ANNOTATION_KEY};
 pub enum PodDrainingInfo {
     None,
     DrainUntil(DateTime<Utc>),
-    Deleted,
     DrainDisabled,
     AnnotationParseError { message: String },
 }
 
 pub fn get_pod_draining_info(pod: &Pod) -> PodDrainingInfo {
-    if pod.metadata.deletion_timestamp.is_some() {
-        return PodDrainingInfo::Deleted;
-    }
-
     if let Some(label) = pod.labels().get(DRAINING_LABEL_KEY) {
         if !label.eq_ignore_ascii_case("true") || label == "0" || label.is_empty() {
             return PodDrainingInfo::DrainDisabled;
@@ -135,23 +130,5 @@ mod tests {
 
         let info = get_pod_draining_info(&pod);
         assert_matches!(info, PodDrainingInfo::AnnotationParseError { message: _ });
-    }
-
-    #[test]
-    fn should_return_some_deleted_when_deletion_timestamp_on_it() {
-        let pod: Pod = from_json! ({
-            "metadata": {
-                "deletionTimestamp": "2023-02-09T15:30:45Z",
-                "labels": {
-                    "pod-graceful-drain/draining": "true",
-                },
-                "annotations": {
-                    "pod-graceful-drain/drain-until": "2023-02-09T15:30:45Z",
-                },
-            }
-        });
-
-        let info = get_pod_draining_info(&pod);
-        assert_matches!(info, PodDrainingInfo::Deleted);
     }
 }
