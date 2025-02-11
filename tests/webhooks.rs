@@ -527,6 +527,16 @@ async fn should_allow_deletion_when_pod_is_not_exposed() {
             ]
         );
 
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
+
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(1)).await;
         kubectl!(&context, ["delete", "pod", "some-pod"]);
         assert!(
@@ -556,6 +566,16 @@ async fn should_allow_deletion_when_dry_run() {
                 "--",
                 "sleep",
                 "9999"
+            ]
+        );
+
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
             ]
         );
 
