@@ -155,7 +155,18 @@ pub async fn delete_handler(
                 Ok(InterceptResult::Allow)
             }
         }
-        PodDrainingInfo::Deleted => Ok(InterceptResult::Allow),
+        PodDrainingInfo::Deleted => {
+            debug_report_for(
+                state,
+                pod,
+                "AllowDeletion",
+                "AlreadyDeleted",
+                "Pod already have 'deletionTimestamp' on it".to_string(),
+            )
+            .await;
+
+            Ok(InterceptResult::Allow)
+        }
         PodDrainingInfo::DrainDisabled => {
             debug_report_for(
                 state,

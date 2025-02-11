@@ -164,6 +164,15 @@ pub async fn eviction_handler(
             .await;
         }
         PodDrainingInfo::Deleted => {
+            debug_report_for(
+                state,
+                &pod,
+                "AllowEviction",
+                "AlreadyDeleted",
+                "Pod already have 'deletionTimestamp' on it".to_string(),
+            )
+            .await;
+
             return Ok(InterceptResult::Allow);
         }
         PodDrainingInfo::DrainDisabled => {
