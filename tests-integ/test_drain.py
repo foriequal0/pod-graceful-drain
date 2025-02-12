@@ -33,7 +33,7 @@ def test_drain_self(tmp_path: Path):
             kind_ctx.cluster_name,
         )
 
-        helm_install(kubectl_ctx)
+        helm_install(kubectl_ctx, values={"hardPodAntiAffinity": "true"})
 
         kubectl_stdin(
             kubectl_ctx,
@@ -113,7 +113,7 @@ def test_drain_other(tmp_path: Path):
             kind_ctx.cluster_name,
         )
 
-        helm_install(kubectl_ctx)
+        helm_install(kubectl_ctx, values={"hardPodAntiAffinity": "true"})
 
         # forcefully place some-pod to worker2
         kubectl_stdin(

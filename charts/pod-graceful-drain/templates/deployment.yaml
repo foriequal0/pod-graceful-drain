@@ -89,10 +89,38 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
       affinity:
+        {{- with omit (.Values.affinity) "podAntiAffinity"  }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
+        podAntiAffinity:
+          {{- if .Values.hardPodAntiAffinity }}
+          {{- with omit ((.Values.affinity).podAntiAffinity) "requiredDuringSchedulingIgnoredDuringExecution"  }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            {{- with ((.Values.affinity).podAntiAffinity).requiredDuringSchedulingIgnoredDuringExecution }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "pod-graceful-drain.selectorLabels" . | nindent 18 }}
+          {{- else }}
+          {{- with omit ((.Values.affinity).podAntiAffinity) "preferredDuringSchedulingIgnoredDuringExecution"  }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            {{- with ((.Values.affinity).podAntiAffinity).preferredDuringSchedulingIgnoredDuringExecution }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "pod-graceful-drain.selectorLabels" . | nindent 20 }}
+          {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
