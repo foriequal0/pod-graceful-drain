@@ -25,7 +25,7 @@ def helm(kubectl_ctx: KubectlContext, /, *args):
 
 
 def helm_install(
-        kubectl_ctx: KubectlContext, repository: str | None = None, tag: str | None = None
+    kubectl_ctx: KubectlContext, repository: str | None = None, tag: str | None = None
 ):
     repo = repository if repository else "localhost/pod-graceful-drain"
     tag = tag if tag else "latest"
