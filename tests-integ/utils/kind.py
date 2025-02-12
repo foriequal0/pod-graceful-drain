@@ -1,3 +1,4 @@
+import os
 import random
 import string
 import subprocess
@@ -7,6 +8,7 @@ from pathlib import Path
 from .subprocess_util import handle_error, print_command, to_bytes
 
 DEFAULT_KIND_IMAGE = "kindest/node:v1.32.0"
+KIND_IMAGE = os.environ.get("KIND_IMAGE", DEFAULT_KIND_IMAGE)
 
 
 class KindContext:
@@ -31,7 +33,7 @@ nodes:
                 "create",
                 "cluster",
                 "--image",
-                DEFAULT_KIND_IMAGE,
+                KIND_IMAGE,
                 "--name",
                 self.cluster_name,
                 # not to messing with global kubeconfig.
@@ -48,7 +50,7 @@ nodes:
                 "create",
                 "cluster",
                 "--image",
-                DEFAULT_KIND_IMAGE,
+                KIND_IMAGE,
                 "--name",
                 self.cluster_name,
                 # not to messing with global kubeconfig.
