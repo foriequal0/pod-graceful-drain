@@ -53,6 +53,8 @@ nodeSelector: { }
 tolerations: [ ]
 affinity: { }
 
+hardPodAntiAffinity: false
+
 # Enable cert-manager
 enableCertManager: false
 

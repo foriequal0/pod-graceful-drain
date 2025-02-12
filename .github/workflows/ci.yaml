@@ -8,7 +8,7 @@ on:
       - main
 
 jobs:
-  check:
+  check-rust:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
@@ -18,14 +18,27 @@ jobs:
           components: rustfmt, clippy
       - name: cargo fetch
         run: cargo fetch --verbose
-      - name: cargo check
-        run: cargo check --all-features --all-targets
-        if: always()
       - name: cargo fmt
         uses: actions-rust-lang/rustfmt@v1
         if: always()
+      - name: cargo check
+        run: cargo check --all-features --all-targets
+        if: always()
       - id: clippy
         run: cargo clippy --all-features --all-targets
+        if: always()
+
+  check-python:
+    timeout-minutes: 3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: eifinger/setup-rye@v4
+        with:
+          version: '0.43.0'
+      - name: rye fmt
+        run: |
+          rye fmt --check
         if: always()
 
   test:
@@ -44,15 +57,16 @@ jobs:
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ""
-      - uses: helm/kind-action@v1
-        with:
-          node_image: kindest/node:${{matrix.kind_image}}
-          cluster_name: 'test-pgd'
+      - name: Setup kind
+        run: |
+          kind create cluster --image="$KIND_IMAGE" --name test-pgd
       - run: cargo fetch --verbose
       - run: cargo test --all-features
         timeout-minutes: 10
@@ -107,34 +121,35 @@ jobs:
           - "v1.26.15"
           - "v1.25.16"
           - "v1.24.17"
+    env:
+      KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     needs:
       - build-image
     steps:
       - uses: actions/checkout@v4
-      - uses: helm/kind-action@v1
-        with:
-          node_image: kindest/node:${{matrix.kind_image}}
-          cluster_name: 'test-pgd'
       - uses: eifinger/setup-rye@v4
         with:
           version: '0.43.0'
       - uses: actions/download-artifact@v4
         with:
           name: pod-graceful-drain.tar
-      - run: |
+      - run: rye sync
+      - name: Smoke test - Setup
+        run: |
           docker image load --input pod-graceful-drain.tar
+          kind create cluster --image="$KIND_IMAGE" --name test-pgd
           kind load docker-image localhost/pod-graceful-drain:latest --name=test-pgd
-      - run: |
           helm install pod-graceful-drain charts/pod-graceful-drain \
             --create-namespace --namespace pod-graceful-drain \
             --set image.repository=localhost/pod-graceful-drain --set image.tag=latest \
+            --set replicaCount=1 \
             --set experimentalGeneralIngress=true \
             --set logLevel=info\\,pod_graceful_drain=trace \
             --wait=true --timeout=1m
-      - run: rye sync
-      - run: rye test
-        timeout-minutes: 10
-      - name: Dump
+      - name: Smoke test
+        run: rye test -- tests-integ/test_smoke.py
+        timeout-minutes: 5
+      - name: Smoke test - Dump
         if: always()
         run: |
           KUBECTL="kubectl --namespace pod-graceful-drain"
@@ -151,6 +166,12 @@ jobs:
           ${KUBECTL} logs --ignore-errors=true "${POD}"
           echo "::endgroup::"
           done
+      - name: Smoke test - Cleanup
+        run: |
+          kind delete cluster --name test-pgd
+      - name: Drain test
+        run: rye test -- tests-integ/test_drain.py
+        timeout-minutes: 10
 
   smoke-tests-result:
     runs-on: ubuntu-latest

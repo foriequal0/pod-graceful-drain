@@ -25,10 +25,18 @@ def helm(kubectl_ctx: KubectlContext, /, *args):
 
 
 def helm_install(
-        kubectl_ctx: KubectlContext, repository: str | None = None, tag: str | None = None
+    kubectl_ctx: KubectlContext,
+    repository: str | None = None,
+    tag: str | None = None,
+    values: dict[str, str] | None = None,
 ):
     repo = repository if repository else "localhost/pod-graceful-drain"
     tag = tag if tag else "latest"
+
+    set_values_args = []
+    for key, value in values.items():
+        set_values_args.append("--set")
+        set_values_args.append(f"{key}={value}")
 
     proj_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     helm(
@@ -45,6 +53,7 @@ def helm_install(
         "experimentalGeneralIngress=true",
         "--set",
         "logLevel=info\\,pod_graceful_drain=trace",
+        *set_values_args,
         "--wait=true",
         "--timeout=1m",
     )
