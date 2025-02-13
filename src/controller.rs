@@ -82,7 +82,7 @@ async fn reconcile(
     pod: Arc<Pod>,
     context: Arc<ReconcilerContext>,
 ) -> Result<Action, ReconcileError> {
-    let span = span!(Level::ERROR, "reconciler", object_ref = %ObjectRef::from_obj(pod.as_ref()));
+    let span = span!(Level::ERROR, "reconciler");
     instrumented!(span, async move {
         if pod.metadata.deletion_timestamp.is_some() {
             return Ok(Action::requeue(DEFAULT_RECONCILE_DURATION));
