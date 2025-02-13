@@ -10,6 +10,7 @@ from utils.kubectl import (
     KubectlContext,
     pod_is_alive,
     kubectl_nowait,
+    pod_is_annotated,
 )
 
 
@@ -94,6 +95,8 @@ spec:
         )
         diff = datetime.now() - start
         assert diff < timedelta(seconds=10 + 5), "it should be quick"
+
+        assert not pod_is_annotated(kubectl_ctx, "pod/some-pod"), "pod is not evicted"
         assert pod_is_alive(kubectl_ctx, "pod/some-pod")
 
 
@@ -173,13 +176,24 @@ spec:
             f"{kind_ctx.cluster_name}-worker2",
         )
 
-        for _ in range(0, 20 - 5):
-            assert pod_is_alive(
-                kubectl_ctx, "pod/some-pod"
-            ), "pod should be alive for approx. 20s"
-            time.sleep(1)
+        time.sleep(1)
+        assert pod_is_annotated(kubectl_ctx, "pod/some-pod"), "pod should be annotated"
 
-        time.sleep(20)
-        assert not pod_is_alive(
-            kubectl_ctx, "pod/some-pod"
-        ), "pod should be dead by now"
+        assert pod_is_alive_for(
+            kubectl_ctx, "pod/some-pod", 20 - 5
+        ), "pod should be alive for at least. 20s"
+
+        assert not pod_is_alive_for(
+            kubectl_ctx,
+            "pod/some-pod",
+            60,  # It can take longer if the owning controller is drained. The remaining one will handle eventually
+        ), "pod should be dead eventually"
+
+
+def pod_is_alive_for(kubectl_ctx, name, secs):
+    for _ in range(secs):
+        if not pod_is_alive(kubectl_ctx, name):
+            return False
+        time.sleep(1)
+    else:
+        return True

@@ -147,7 +147,7 @@ jobs:
             --set logLevel=info\\,pod_graceful_drain=trace \
             --wait=true --timeout=1m
       - name: Smoke test
-        run: rye test -- tests-integ/test_smoke.py
+        run: rye test -- tests-integ/test_smoke.py --capture=tee-sys
         timeout-minutes: 5
       - name: Smoke test - Dump
         if: always()
@@ -170,7 +170,7 @@ jobs:
         run: |
           kind delete cluster --name test-pgd
       - name: Drain test
-        run: rye test -- tests-integ/test_drain.py
+        run: rye test -- tests-integ/test_drain.py --capture=tee-sys
         timeout-minutes: 10
 
   smoke-tests-result:

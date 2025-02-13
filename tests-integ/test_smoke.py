@@ -8,6 +8,7 @@ from utils.kubectl import (
     kubectl_nowait,
     kubectl_stdin,
     KubectlContext,
+    pod_is_annotated,
 )
 from utils.kind import KindContext
 
@@ -96,13 +97,15 @@ spec:
 
         kubectl_nowait(kubectl_ctx, "delete", "pod/some-pod")
 
+        time.sleep(1)  # give some time to process
+        assert pod_is_annotated(kubectl_ctx, "pod/some-pod"), "pod is annotated"
         for secs in range(0, 20 - 5):
             assert pod_is_alive(
                 kubectl_ctx, "pod/some-pod"
             ), f"pod should be alive for approx. 20s, but died in {secs}s"
             time.sleep(1)
 
-        time.sleep(20)
+        time.sleep(10)
         assert not pod_is_alive(
             kubectl_ctx, "pod/some-pod"
         ), "pod should be dead by now"

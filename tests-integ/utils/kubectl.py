@@ -64,6 +64,24 @@ def kubectl_nowait(context: KubectlContext, /, *args):
     return child
 
 
+def pod_is_annotated(context: KubectlContext, name):
+    command = _get_command(
+        context,
+        "get",
+        name,
+        "-o",
+        "jsonpath={.metadata.labels['pod-graceful-drain/draining']}",
+    )
+    print_command(command)
+    result = subprocess.run(command, capture_output=True, encoding="utf-8")
+
+    if result.returncode != 0:
+        return False
+
+    stdout = result.stdout.strip()
+    return stdout
+
+
 def pod_is_alive(context: KubectlContext, name):
     command = _get_command(
         context, "get", name, "-o", "jsonpath={.metadata.deletionTimestamp}"
