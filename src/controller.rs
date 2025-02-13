@@ -84,6 +84,10 @@ async fn reconcile(
 ) -> Result<Action, ReconcileError> {
     let span = span!(Level::ERROR, "reconciler", object_ref = %ObjectRef::from_obj(pod.as_ref()));
     instrumented!(span, async move {
+        if pod.metadata.deletion_timestamp.is_some() {
+            return Ok(Action::requeue(DEFAULT_RECONCILE_DURATION));
+        }
+
         if let PodDrainingInfo::DrainUntil(drain_until) = get_pod_draining_info(&pod) {
             let remaining = drain_until - Utc::now();
             if let Ok(remaining) = remaining.to_std() {

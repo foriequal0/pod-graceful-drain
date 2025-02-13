@@ -58,21 +58,21 @@ pub async fn eviction_handler(
         .get_pod(&object_ref)
         .ok_or(eyre!("pod is not found"))?;
 
+    if pod.metadata.deletion_timestamp.is_some() {
+        debug_report_for(
+            state,
+            &pod,
+            "AllowEviction",
+            "AlreadyDeleted",
+            "Pod already have 'deletionTimestamp' on it".to_string(),
+        )
+        .await;
+        return Ok(InterceptResult::Allow);
+    }
+
     let draining = get_pod_draining_info(&pod);
     match draining {
         PodDrainingInfo::None => {
-            if pod.metadata.deletion_timestamp.is_some() {
-                debug_report_for(
-                    state,
-                    &pod,
-                    "AllowEviction",
-                    "AlreadyDeleted",
-                    "Pod already have 'deletionTimestamp' on it".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
-
             if !is_pod_ready(&pod) {
                 debug_report_for(
                     state,
