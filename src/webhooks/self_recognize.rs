@@ -30,7 +30,7 @@ pub fn is_my_serviceaccount(downward_api: &DownwardAPI, user_info: &UserInfo) ->
         return false;
     }
 
-    let namespace_group = format!("system:serviceaccount:{namespace}");
+    let namespace_group = format!("system:serviceaccounts:{namespace}");
     if !groups.iter().any(|group| group == &namespace_group) {
         return false;
     }
@@ -56,7 +56,7 @@ mod tests {
             username: Some(String::from("system:serviceaccount:some-namespace:some-sa")),
             groups: Some(vec![
                 String::from("system:serviceaccounts"),
-                String::from("system:serviceaccount:some-namespace"),
+                String::from("system:serviceaccounts:some-namespace"),
                 String::from("system:authenticated"),
             ]),
             extra: None,
@@ -81,7 +81,7 @@ mod tests {
             )),
             groups: Some(vec![
                 String::from("system:serviceaccounts"),
-                String::from("system:serviceaccount:other-namespace"),
+                String::from("system:serviceaccounts:other-namespace"),
                 String::from("system:authenticated"),
             ]),
             extra: None,
