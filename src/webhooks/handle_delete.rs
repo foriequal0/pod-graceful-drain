@@ -46,21 +46,21 @@ pub async fn delete_handler(
         .as_ref()
         .ok_or(eyre!("old_object for validation is missing"))?;
 
+    if pod.metadata.deletion_timestamp.is_some() {
+        debug_report_for(
+            state,
+            pod,
+            "AllowDeletion",
+            "AlreadyDeleted",
+            "Pod already have 'deletionTimestamp' on it".to_string(),
+        )
+        .await;
+        return Ok(InterceptResult::Allow);
+    }
+
     let draining = get_pod_draining_info(pod);
     match draining {
         PodDrainingInfo::None => {
-            if pod.metadata.deletion_timestamp.is_some() {
-                debug_report_for(
-                    state,
-                    pod,
-                    "AllowDeletion",
-                    "AlreadyDeleted",
-                    "Pod already have 'deletionTimestamp' on it".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
-
             if !is_pod_ready(pod) {
                 debug_report_for(
                     state,
