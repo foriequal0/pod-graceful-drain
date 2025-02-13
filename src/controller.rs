@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::hash::Hasher;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,7 +12,7 @@ use kube::runtime::reflector::ObjectRef;
 use kube::runtime::watcher::Config;
 use kube::runtime::{controller, watcher, Controller};
 use kube::{Api, ResourceExt};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use thiserror::Error;
 use tracing::{debug, error, info, span, trace, Level};
 
@@ -26,7 +26,7 @@ use crate::spawn_service::spawn_service;
 use crate::status::{
     is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
 };
-use crate::{instrumented, ServiceRegistry};
+use crate::{instrumented, try_some, ServiceRegistry};
 
 /// Start a controller that deletes deregistered pods.
 pub fn start_controller(
@@ -89,20 +89,20 @@ async fn reconcile(
         }
 
         if let PodDrainingInfo::DrainUntil(drain_until) = get_pod_draining_info(&pod) {
-            let remaining = drain_until - Utc::now();
-            if let Ok(remaining) = remaining.to_std() {
-                return Ok(Action::requeue(remaining));
-            }
-
-            let expire = (-remaining).to_std().expect("should be expired");
-            if expire < CONTROLLER_EXCLUSIVE_DURATION && !context.loadbalancing.controls(&pod) {
+            if context.loadbalancing.controls(&pod) {
+                let remaining = drain_until - Utc::now();
+                if let Ok(remaining) = remaining.to_std() {
+                    return Ok(Action::requeue(remaining));
+                }
+            } else {
                 // Let the original controller handle first.
-                let requeue_duration = rand::rng().random_range(
-                    CONTROLLER_EXCLUSIVE_DURATION
-                        ..CONTROLLER_EXCLUSIVE_DURATION.add(CONTROLLER_TIMEOUT_JITTER),
-                );
-
-                return Ok(Action::requeue(requeue_duration));
+                let controller_exclusive_until = drain_until + CONTROLLER_EXCLUSIVE_DURATION;
+                let jitter = get_stable_jitter(&pod, &context);
+                let jittered = controller_exclusive_until + jitter;
+                let remaining = jittered - Utc::now();
+                if let Ok(remaining) = remaining.to_std() {
+                    return Ok(Action::requeue(remaining));
+                }
             }
 
             // TODO: possible bottleneck of the reconciler.
@@ -115,6 +115,32 @@ async fn reconcile(
 
         Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
     })
+}
+
+fn get_stable_jitter(pod: &Pod, context: &ReconcilerContext) -> Duration {
+    let instance_id = context.loadbalancing.get_id();
+    let pod_namespace = try_some!(pod.metadata.namespace?).map(|x| x.as_str());
+    let pod_name = try_some!(pod.metadata.name?).map(|x| x.as_str());
+
+    get_stable_jitter_impl(instance_id, pod_namespace, pod_name)
+}
+
+fn get_stable_jitter_impl(
+    instance_id: &str,
+    pod_namespace: Option<&str>,
+    pod_name: Option<&str>,
+) -> Duration {
+    let mut hasher = std::hash::DefaultHasher::default();
+    hasher.write(instance_id.as_bytes());
+    if let Some(namespace) = pod_namespace {
+        hasher.write(namespace.as_bytes());
+    }
+    if let Some(name) = pod_name {
+        hasher.write(name.as_bytes());
+    }
+
+    let mut rng = rand::rngs::StdRng::seed_from_u64(hasher.finish());
+    rng.random_range(Default::default()..CONTROLLER_TIMEOUT_JITTER)
 }
 
 fn error_policy(pod: Arc<Pod>, err: &ReconcileError, _context: Arc<ReconcilerContext>) -> Action {
@@ -181,11 +207,11 @@ async fn delete_pod(api_resolver: &ApiResolver, pod: &Pod) -> kube::Result<()> {
         ..DeleteParams::default()
     };
 
-    info!("deleting pod");
+    debug!("deleting pod");
     let result = api.delete(&name, &delete_params).await;
     match result {
         Ok(_) => {
-            debug!("pod is deleted");
+            info!("pod is deleted");
             Ok(())
         }
         Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
@@ -204,11 +230,11 @@ async fn evict_pod(
     let api = api_resolver.api_for(pod);
     let name = pod.name_any();
 
-    info!("evicting pod");
+    debug!("evicting pod");
     let result = api.evict(&name, evict_params).await;
     match result {
         Ok(_) => {
-            debug!("pod is evicted");
+            info!("pod is evicted");
             Ok(())
         }
         Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
@@ -216,5 +242,18 @@ async fn evict_pod(
             Ok(())
         }
         Err(err) => Err(err),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stable_jitter_should_stable() {
+        let first = get_stable_jitter_impl("instance_id", Some("namespace"), Some("name"));
+        let second = get_stable_jitter_impl("instance_id", Some("namespace"), Some("name"));
+
+        assert_eq!(first, second);
     }
 }
