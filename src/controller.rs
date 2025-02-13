@@ -158,6 +158,10 @@ async fn log_reconcile_result(
                 }
                 _ => error!(%object_ref, ?err, "error"),
             },
+            Err(controller::Error::ObjectNotFound(object_ref)) => {
+                // reconciler is late
+                debug!(%object_ref, "gone");
+            }
             Err(err) => {
                 error!(?err, "error");
             }
