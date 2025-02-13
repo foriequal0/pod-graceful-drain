@@ -14,7 +14,7 @@ use kube::runtime::{controller, watcher, Controller};
 use kube::{Api, ResourceExt};
 use rand::Rng;
 use thiserror::Error;
-use tracing::{debug, error, info, span, trace, warn, Level};
+use tracing::{debug, error, info, span, trace, Level};
 
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
@@ -106,34 +106,30 @@ async fn reconcile(
             }
 
             // TODO: possible bottleneck of the reconciler.
-            let result = if let Some(evict_params) = get_pod_evict_params(&pod) {
-                evict_pod(&context.api_resolver, &pod, &evict_params).await
+            if let Some(evict_params) = get_pod_evict_params(&pod) {
+                evict_pod(&context.api_resolver, &pod, &evict_params).await?
             } else {
-                delete_pod(&context.api_resolver, &pod).await
+                delete_pod(&context.api_resolver, &pod).await?
             };
-
-            match result {
-                Ok(_) => {}
-                Err(err) if is_transient_error(&err) => {
-                    let object_ref = ObjectRef::from_obj(pod.as_ref());
-                    warn!(%object_ref, ?err, "retry transient error");
-                    return Ok(Action::requeue(DEFAULT_TRANSIENT_ERROR_RECONCILE));
-                }
-                Err(err) => {
-                    return Err(err.into());
-                }
-            }
         };
 
         Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
     })
 }
 
-fn error_policy(_pod: Arc<Pod>, err: &ReconcileError, _context: Arc<ReconcilerContext>) -> Action {
+fn error_policy(pod: Arc<Pod>, err: &ReconcileError, _context: Arc<ReconcilerContext>) -> Action {
+    let span = span!(Level::ERROR, "reconciler::error_policy");
+    let _ = span.enter();
     match err {
         ReconcileError::KubeError(err) => {
             if is_409_conflict_error(err) {
                 return Action::requeue(Duration::from_secs(1));
+            }
+
+            if is_transient_error(err) {
+                let object_ref = ObjectRef::from_obj(pod.as_ref());
+                info!(%object_ref, ?err, "retry transient error");
+                return Action::requeue(DEFAULT_TRANSIENT_ERROR_RECONCILE);
             }
         }
     }
