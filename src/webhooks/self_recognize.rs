@@ -1,5 +1,6 @@
-use crate::downward_api::DownwardAPI;
 use k8s_openapi::api::authentication::v1::UserInfo;
+
+use crate::downward_api::DownwardAPI;
 
 pub fn is_my_serviceaccount(downward_api: &DownwardAPI, user_info: &UserInfo) -> bool {
     let Some(service_account_name) = &downward_api.pod_service_account_name else {

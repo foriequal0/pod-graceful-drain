@@ -18,14 +18,14 @@ use tracing::{debug, error, info, span, trace, Level};
 
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
+use crate::error_codes::{
+    is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
+};
 use crate::loadbalancing::LoadBalancingConfig;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_evict_params::get_pod_evict_params;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::status::{
-    is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
-};
 use crate::{instrumented, try_some, ServiceRegistry};
 
 /// Start a controller that deletes deregistered pods.

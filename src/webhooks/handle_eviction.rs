@@ -10,14 +10,15 @@ use kube::client::Status;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse};
 use kube::{Api, ResourceExt};
 
+use crate::error_codes::{is_404_not_found_error, is_410_gone_error};
 use crate::impersonate::impersonate;
+use crate::patch::{make_patch_eviction_to_dry_run, patch_pod_isolate};
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::status::{is_404_not_found_error, is_410_gone_error};
 use crate::utils::{get_object_ref_from_name, to_delete_params};
-use crate::webhooks::patch::make_patch_eviction_to_dry_run;
+use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
-use crate::webhooks::{debug_report_for_ref, patch_pod_isolate, AppState, InterceptResult};
+use crate::webhooks::{debug_report_for_ref, AppState};
 use crate::{try_some, ApiResolver};
 
 /// The handler patches CREATE Eviction request as dry-run.

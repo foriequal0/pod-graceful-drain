@@ -1,8 +1,9 @@
+use std::collections::{HashMap, HashSet};
+
 use genawaiter::{rc::gen, yield_};
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::runtime::reflector::ObjectRef;
 use kube::{Resource, ResourceExt};
-use std::collections::{HashMap, HashSet};
 
 use crate::elbv2::apis::TargetType;
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;

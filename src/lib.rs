@@ -4,8 +4,10 @@ mod consts;
 mod controller;
 mod downward_api;
 mod elbv2;
+mod error_codes;
 mod impersonate;
 mod loadbalancing;
+mod patch;
 mod pod_draining_info;
 mod pod_evict_params;
 mod pod_state;
@@ -13,7 +15,6 @@ mod reflector;
 mod service_registry;
 mod shutdown;
 mod spawn_service;
-mod status;
 mod utils;
 pub mod webhooks;
 
@@ -27,8 +28,8 @@ pub use crate::service_registry::ServiceRegistry;
 pub use crate::shutdown::Shutdown;
 pub use crate::webhooks::{start_webhook, WebhookConfig};
 
-#[cfg(test)]
-pub use crate::webhooks::patch_pod_isolate;
+// public for test
+pub use crate::patch::patch_pod_isolate;
 
 #[cfg(test)]
 #[macro_use]

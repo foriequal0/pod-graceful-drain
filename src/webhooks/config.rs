@@ -1,6 +1,7 @@
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
+
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 pub struct WebhookConfig {
     pub(crate) bind: BindConfig,
