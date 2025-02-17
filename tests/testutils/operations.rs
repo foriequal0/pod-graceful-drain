@@ -9,9 +9,8 @@ use k8s_openapi::{ClusterResourceScope, NamespaceResourceScope};
 use kube::api::{ApiResource, DynamicObject, Patch, PatchParams, PostParams};
 use kube::{Api, Resource, ResourceExt};
 
-use super::context::TestContext;
-use super::run_command::run_command;
-use crate::testutils::run_command::CommandParams;
+use crate::testutils::context::TestContext;
+use crate::testutils::run_command::{run_command, CommandParams};
 
 pub async fn kubectl(context: &TestContext, args: &[&str], stdin: Option<&[u8]>) {
     let kubectl = std::env::var("KUBECTL").unwrap_or("kubectl".to_owned());

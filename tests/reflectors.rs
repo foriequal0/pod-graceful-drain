@@ -8,9 +8,9 @@ use k8s_openapi::api::networking::v1::Ingress;
 use kube::runtime::reflector::ObjectRef;
 use kube::ResourceExt;
 
-use crate::testutils::context::{within_test_namespace, TestContext};
-
 use pod_graceful_drain::{start_reflectors, try_some, Config, Stores};
+
+use crate::testutils::context::{within_test_namespace, TestContext};
 
 fn start_test_reflector(context: &TestContext) -> Stores {
     let config = Config {

@@ -5,8 +5,7 @@ use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use tokio::time::Duration;
 
-use pod_graceful_drain::webhooks::patch_pod_isolate;
-use pod_graceful_drain::ServiceRegistry;
+use pod_graceful_drain::{patch_pod_isolate, ServiceRegistry};
 
 use crate::testutils::context::{within_test_namespace, TestContext};
 use crate::testutils::operations::install_test_host_service;

@@ -9,13 +9,15 @@ use kube::core::admission::AdmissionRequest;
 use kube::ResourceExt;
 use serde::Deserialize;
 
+use crate::error_codes::{is_404_not_found_error, is_410_gone_error};
 use crate::impersonate::impersonate;
+use crate::patch::patch_pod_isolate;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::status::{is_404_not_found_error, is_410_gone_error};
 use crate::utils::to_delete_params;
+use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
-use crate::webhooks::{patch_pod_isolate, AppState, InterceptResult};
+use crate::webhooks::AppState;
 use crate::ApiResolver;
 
 /// This handler delays the admission of DELETE Pod request.

@@ -21,11 +21,11 @@ use crate::consts::{
     DELETE_OPTIONS_ANNOTATION_KEY, DRAINING_LABEL_KEY, DRAIN_CONTROLLER_ANNOTATION_KEY,
     DRAIN_UNTIL_ANNOTATION_KEY, ORIGINAL_LABELS_ANNOTATION_KEY,
 };
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
-use crate::status::{
+use crate::error_codes::{
     is_404_not_found_error, is_409_conflict_error, is_410_gone_error,
     is_generic_server_response_422_invalid_for_json_patch_error, is_transient_error,
 };
+use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
 use crate::LoadBalancingConfig;
 
 async fn apply_patch<K>(

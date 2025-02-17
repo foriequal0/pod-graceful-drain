@@ -1,3 +1,5 @@
+mod testutils;
+
 use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -23,8 +25,6 @@ use pod_graceful_drain::{
 use crate::testutils::context::{within_test_namespace, TestContext};
 use crate::testutils::event_tracker::EventTracker;
 use crate::testutils::operations::install_test_host_service;
-
-mod testutils;
 
 async fn generate_self_signed_cert(
     subject: String,
