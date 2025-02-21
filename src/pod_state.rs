@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use genawaiter::{rc::gen, yield_};
+use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::runtime::reflector::ObjectRef;
 use kube::{Resource, ResourceExt};
@@ -58,7 +58,7 @@ pub fn is_pod_exposed(config: &Config, stores: &Stores, pod: &Pod) -> bool {
 
 fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
-    let ingress_exposed_services = gen!({
+    let ingress_exposed_services = r#gen!({
         let mut seen = HashSet::new();
         let pod_namespace = pod.metadata.namespace.as_ref();
         for ingress in stores.ingresses() {
@@ -103,7 +103,7 @@ fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
 
 fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
-    let tgb_exposed_service = gen!({
+    let tgb_exposed_service = r#gen!({
         let mut seen = HashSet::new();
         let pod_namespace = pod.metadata.namespace.as_ref();
         for tgb in stores.target_group_bindings() {
