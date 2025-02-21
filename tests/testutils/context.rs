@@ -14,12 +14,12 @@ use rand::Rng;
 use tempfile::NamedTempFile;
 use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;
-use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
 
 use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown};
 
-use crate::testutils::run_command::{get_command_output, run_command, CommandParams};
+use crate::testutils::run_command::{CommandParams, get_command_output, run_command};
 
 const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.32.0";
 const DEFAULT_TEST_CLUSTER_NAME: &str = "test-pgd";

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use k8s_openapi::api::core::v1::Pod;
 use kube::ResourceExt;
 
-use crate::consts::{DRAINING_LABEL_KEY, DRAIN_UNTIL_ANNOTATION_KEY};
+use crate::consts::{DRAIN_UNTIL_ANNOTATION_KEY, DRAINING_LABEL_KEY};
 
 #[derive(Debug)]
 pub enum PodDrainingInfo {

@@ -23,10 +23,10 @@ pub use crate::config::Config;
 pub use crate::controller::start_controller;
 pub use crate::downward_api::DownwardAPI;
 pub use crate::loadbalancing::LoadBalancingConfig;
-pub use crate::reflector::{start_reflectors, Stores};
+pub use crate::reflector::{Stores, start_reflectors};
 pub use crate::service_registry::ServiceRegistry;
 pub use crate::shutdown::Shutdown;
-pub use crate::webhooks::{start_webhook, WebhookConfig};
+pub use crate::webhooks::{WebhookConfig, start_webhook};
 
 // public for test
 pub use crate::patch::patch_pod_isolate;

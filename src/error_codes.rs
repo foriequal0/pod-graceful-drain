@@ -1,5 +1,5 @@
-use kube::error::ErrorResponse;
 use kube::Error;
+use kube::error::ErrorResponse;
 
 const STATUS_CODE_404_NOT_FOUND: u16 = 404;
 const STATUS_CODE_408_TIMEOUT: u16 = 408;

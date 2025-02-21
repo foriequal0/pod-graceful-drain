@@ -11,13 +11,13 @@ use std::net::SocketAddr;
 
 use axum::http::StatusCode;
 use axum::routing::get;
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{Json, Router, extract::State, routing::post};
 use eyre::Result;
 use k8s_openapi::api::{core::v1::Pod, policy::v1::Eviction};
-use kube::core::admission::AdmissionReview;
 use kube::core::DynamicObject;
+use kube::core::admission::AdmissionReview;
 use kube::runtime::events::Reporter;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::info;
 
 use crate::api_resolver::ApiResolver;
@@ -28,7 +28,7 @@ use crate::reflector::Stores;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
 pub use crate::webhooks::config::WebhookConfig;
-use crate::webhooks::handle_common::{handle_common, ValueOrStatusCode};
+use crate::webhooks::handle_common::{ValueOrStatusCode, handle_common};
 use crate::webhooks::handle_delete::delete_handler;
 use crate::webhooks::handle_eviction::eviction_handler;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
