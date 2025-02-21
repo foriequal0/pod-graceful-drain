@@ -147,9 +147,9 @@ pub fn start_reflectors(
 fn run_reflector<K>(
     shutdown: &Shutdown,
     writer: Writer<K>,
-    stream: impl Stream<Item = watcher::Result<Event<K>>>,
+    stream: impl Stream<Item = watcher::Result<Event<K>>> + 'static,
     signal: ServiceSignal,
-) -> impl Future<Output = ()>
+) -> impl Future<Output = ()> + 'static
 where
     K: Resource + k8s_openapi::Resource + Clone,
     K::DynamicType: Default + Eq + Hash + Clone,
