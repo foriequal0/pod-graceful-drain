@@ -1,10 +1,10 @@
 use std::fmt::{Display, Formatter, Write as _};
-use std::io::{stderr, stdout, BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, stderr, stdout};
 use std::process::{Command, Output, Stdio};
 
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result, eyre};
 use tokio::task::spawn_blocking;
-use tracing::{enabled, error, info, span, trace, Level};
+use tracing::{Level, enabled, error, info, span, trace};
 
 #[derive(Clone)]
 pub struct CommandParams<'a> {

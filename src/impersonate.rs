@@ -3,7 +3,7 @@ use std::str::FromStr;
 use axum::http::{HeaderName, HeaderValue, Request};
 use eyre::{Context, Result};
 use k8s_openapi::api::authentication::v1::UserInfo;
-use percent_encoding::{utf8_percent_encode, AsciiSet};
+use percent_encoding::{AsciiSet, utf8_percent_encode};
 
 const IMPERSONATED_SELF_USER_EXTRA: &str = "pod-graceful-drain/impersonated";
 

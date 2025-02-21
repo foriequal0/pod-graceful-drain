@@ -11,11 +11,11 @@ use k8s_openapi::api::{
     networking::v1::Ingress,
 };
 use kube::runtime::reflector::store::Writer;
-use kube::runtime::reflector::{store, ObjectRef, Store};
+use kube::runtime::reflector::{ObjectRef, Store, store};
 use kube::runtime::watcher::Event;
-use kube::runtime::{watcher, WatchStreamExt};
+use kube::runtime::{WatchStreamExt, watcher};
 use kube::{Api, Resource};
-use tracing::{debug, error, span, trace, Level};
+use tracing::{Level, debug, error, span, trace};
 
 use crate::api_resolver::ApiResolver;
 use crate::elbv2::apis::TargetGroupBinding;
@@ -23,7 +23,7 @@ use crate::error_codes::is_410_expired_error_response;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, try_some, Config, ServiceRegistry};
+use crate::{Config, ServiceRegistry, instrumented, try_some};
 
 #[derive(Clone)]
 pub struct Stores {

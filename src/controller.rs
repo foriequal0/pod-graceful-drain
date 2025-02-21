@@ -10,11 +10,11 @@ use kube::api::{DeleteParams, EvictParams, Preconditions};
 use kube::runtime::controller::Action;
 use kube::runtime::reflector::ObjectRef;
 use kube::runtime::watcher::Config;
-use kube::runtime::{controller, watcher, Controller};
+use kube::runtime::{Controller, controller, watcher};
 use kube::{Api, ResourceExt};
 use rand::{Rng, SeedableRng};
 use thiserror::Error;
-use tracing::{debug, error, info, span, trace, Level};
+use tracing::{Level, debug, error, info, span, trace};
 
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
@@ -23,11 +23,11 @@ use crate::error_codes::{
     is_410_expired_error_response, is_transient_error,
 };
 use crate::loadbalancing::LoadBalancingConfig;
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
+use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 use crate::pod_evict_params::get_pod_evict_params;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, try_some, ServiceRegistry};
+use crate::{ServiceRegistry, instrumented, try_some};
 
 /// Start a controller that deletes deregistered pods.
 pub fn start_controller(

@@ -2,25 +2,25 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::time::Duration;
 
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use eyre::Result;
 use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::serde::Serialize;
-use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
-use kube::core::DynamicObject;
-use kube::runtime::reflector::ObjectRef;
 use kube::Resource;
-use tracing::{span, trace, Level};
+use kube::core::DynamicObject;
+use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
+use kube::runtime::reflector::ObjectRef;
+use tracing::{Level, span, trace};
 
 use crate::impersonate::is_impersonated_self;
 use crate::instrumented;
 use crate::utils::get_object_ref_from_name;
+use crate::webhooks::AppState;
 use crate::webhooks::report::{debug_report_for_ref, warn_report_for_ref};
 use crate::webhooks::self_recognize::is_my_serviceaccount;
-use crate::webhooks::AppState;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ValueOrStatusCode<T> {

@@ -5,12 +5,12 @@ use std::time::Duration;
 
 use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::runtime::reflector::ObjectRef;
 use kube::ResourceExt;
+use kube::runtime::reflector::ObjectRef;
 
-use pod_graceful_drain::{start_reflectors, try_some, Config, Stores};
+use pod_graceful_drain::{Config, Stores, start_reflectors, try_some};
 
-use crate::testutils::context::{within_test_namespace, TestContext};
+use crate::testutils::context::{TestContext, within_test_namespace};
 
 fn start_test_reflector(context: &TestContext) -> Stores {
     let config = Config {
@@ -84,9 +84,9 @@ async fn should_reflect_pod_delete() {
 
         kubectl!(&context, ["delete", "pod", "some-pod"]);
 
-        assert!(eventually!(stores
-            .get_pod(&ObjectRef::from_obj(&pod))
-            .is_none()));
+        assert!(eventually!(
+            stores.get_pod(&ObjectRef::from_obj(&pod)).is_none()
+        ));
     })
     .await;
 }
@@ -118,11 +118,13 @@ async fn should_reflect_pod_label_edit() {
         );
 
         assert_eq!(
-            eventually_some!(try_some!((stores
-                .get_pod(&ObjectRef::from_obj(&pod))?
-                .labels()
-                .get("some-label")?)
-            .clone())),
+            eventually_some!(try_some!(
+                (stores
+                    .get_pod(&ObjectRef::from_obj(&pod))?
+                    .labels()
+                    .get("some-label")?)
+                .clone()
+            )),
             String::from("edited-value")
         );
     })
@@ -204,12 +206,14 @@ spec:
 
         assert_eq!(
             eventually_some!({
-                let label = try_some!(stores
-                    .get_service(&ObjectRef::from_obj(&service))?
-                    .spec?
-                    .selector?
-                    .get("some-label")
-                    .cloned())
+                let label = try_some!(
+                    stores
+                        .get_service(&ObjectRef::from_obj(&service))?
+                        .spec?
+                        .selector?
+                        .get("some-label")
+                        .cloned()
+                )
                 .flatten();
                 match label {
                     Some(str) if str == "some-value" => None,
@@ -246,9 +250,9 @@ spec:
         );
         kubectl!(&context, ["delete", "service", "some-service"]);
 
-        assert!(eventually!(stores
-            .get_service(&ObjectRef::from_obj(&service))
-            .is_none()));
+        assert!(eventually!(
+            stores.get_service(&ObjectRef::from_obj(&service)).is_none()
+        ));
     })
     .await;
 }
@@ -285,11 +289,13 @@ spec:
         });
 
         assert_eq!(
-            try_some!(ingress.spec?.rules?[0].http?.paths[0]
-                .backend
-                .service?
-                .name
-                .clone()),
+            try_some!(
+                ingress.spec?.rules?[0].http?.paths[0]
+                    .backend
+                    .service?
+                    .name
+                    .clone()
+            ),
             Some(String::from("test"))
         );
     })
@@ -358,10 +364,12 @@ spec:
               number: 80"
         );
 
-        let ingress = eventually_some!(stores
-            .ingresses()
-            .into_iter()
-            .find(|ingress| ingress.name_any() == "some-ingress"));
+        let ingress = eventually_some!(
+            stores
+                .ingresses()
+                .into_iter()
+                .find(|ingress| ingress.name_any() == "some-ingress")
+        );
 
         apply_yaml!(
             &context,
@@ -382,23 +390,29 @@ spec:
               number: 80"
         );
 
-        let old_label = try_some!(ingress.spec?.rules?[0].http?.paths[0]
-            .backend
-            .service?
-            .name
-            .clone());
+        let old_label = try_some!(
+            ingress.spec?.rules?[0].http?.paths[0]
+                .backend
+                .service?
+                .name
+                .clone()
+        );
         assert_eq!(
             eventually_some!({
-                let new_ingress = try_some!(stores
-                    .ingresses()
-                    .into_iter()
-                    .find(|ing| ing.name_any() == ingress.name_any()))
+                let new_ingress = try_some!(
+                    stores
+                        .ingresses()
+                        .into_iter()
+                        .find(|ing| ing.name_any() == ingress.name_any())
+                )
                 .unwrap();
-                let new_label = try_some!(new_ingress?.spec?.rules?[0].http?.paths[0]
-                    .backend
-                    .service?
-                    .name
-                    .clone());
+                let new_label = try_some!(
+                    new_ingress?.spec?.rules?[0].http?.paths[0]
+                        .backend
+                        .service?
+                        .name
+                        .clone()
+                );
                 if new_label == old_label {
                     None
                 } else {
