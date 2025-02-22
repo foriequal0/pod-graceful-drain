@@ -12,8 +12,8 @@ use k8s_openapi::api::{
 };
 use kube::runtime::reflector::store::Writer;
 use kube::runtime::reflector::{store, ObjectRef, Store};
-use kube::runtime::watcher;
 use kube::runtime::watcher::Event;
+use kube::runtime::{watcher, WatchStreamExt};
 use kube::{Api, Resource};
 use tracing::{error, span, trace, Level};
 
@@ -160,6 +160,7 @@ where
             async move {
                 let mut results = Box::pin(
                     kube::runtime::reflector(writer, stream)
+                        .default_backoff()
                         .take_until(shutdown.wait_shutdown_triggered()),
                 );
 
