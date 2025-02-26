@@ -19,7 +19,8 @@ use tracing::{debug, error, info, span, trace, Level};
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
 use crate::error_codes::{
-    is_404_not_found_error, is_409_conflict_error, is_410_expired_error, is_transient_error,
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
+    is_410_expired_error_response, is_transient_error,
 };
 use crate::loadbalancing::LoadBalancingConfig;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
@@ -172,18 +173,33 @@ async fn log_reconcile_result(
             Ok((object_ref, action)) => {
                 trace!(%object_ref, ?action, "success");
             }
-            Err(controller::Error::ReconcilerFailed(err, object_ref)) => match err {
-                ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
-                    debug!(%object_ref, ?err, "conflict");
+            Err(controller::Error::ReconcilerFailed(reconcile_err, object_ref)) => {
+                match reconcile_err {
+                    ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
+                        debug!(%object_ref, ?err, "conflict on reconcile");
+                    }
+                    ReconcileError::KubeError(err)
+                        if is_404_not_found_error(&err) || is_410_expired_error(&err) =>
+                    {
+                        // reconciler is late
+                        debug!(%object_ref, ?err, "expired on reconcile");
+                    }
+                    _ => error!(%object_ref, ?reconcile_err, "error on reconcile"),
                 }
-                ReconcileError::KubeError(err)
-                    if is_404_not_found_error(&err) || is_410_expired_error(&err) =>
-                {
-                    // reconciler is late
-                    debug!(%object_ref, ?err, "gone");
+            }
+            Err(controller::Error::QueueError(queue_err)) => {
+                match queue_err {
+                    watcher::Error::WatchFailed(err) => {
+                        // restarting
+                        debug!(?err, "watch fail on queue");
+                    }
+                    watcher::Error::WatchError(resp) if is_410_expired_error_response(&resp) => {
+                        // reconciler is late
+                        debug!(?resp, "expired on queue");
+                    }
+                    _ => error!(?queue_err, "error on queue"),
                 }
-                _ => error!(%object_ref, ?err, "error"),
-            },
+            }
             Err(controller::Error::ObjectNotFound(object_ref)) => {
                 // reconciler is late
                 debug!(%object_ref, "gone");
