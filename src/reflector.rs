@@ -15,10 +15,11 @@ use kube::runtime::reflector::{store, ObjectRef, Store};
 use kube::runtime::watcher::Event;
 use kube::runtime::{watcher, WatchStreamExt};
 use kube::{Api, Resource};
-use tracing::{error, span, trace, Level};
+use tracing::{debug, error, span, trace, Level};
 
 use crate::api_resolver::ApiResolver;
 use crate::elbv2::apis::TargetGroupBinding;
+use crate::error_codes::is_410_expired_error_response;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
@@ -166,7 +167,7 @@ where
 
                 // Log until Event::InitDone
                 while let Some(result) = results.next().await {
-                    log(&result);
+                    log(&result, true);
 
                     // TODO : raise appropriate signal when Event::Init restarted
                     if let Ok(Event::InitDone) = result {
@@ -176,10 +177,10 @@ where
                 }
 
                 while let Some(result) = results.next().await {
-                    log(&result)
+                    log(&result, false);
                 }
 
-                fn log<K>(result: &watcher::Result<Event<K>>)
+                fn log<K>(result: &watcher::Result<Event<K>>, init: bool)
                 where
                     K: Resource,
                     K::DynamicType: Default,
@@ -205,6 +206,14 @@ where
                                 trace!("stream restart done");
                             }
                         },
+                        Err(watcher::Error::WatchFailed(err)) if !init => {
+                            debug!(?err, "watch failed. stream will restart soon");
+                        }
+                        Err(watcher::Error::WatchError(resp))
+                            if !init && is_410_expired_error_response(resp) =>
+                        {
+                            debug!(?resp, "watch error. stream will restart");
+                        }
                         Err(err) => {
                             error!(?err, "reflector error");
                         }
