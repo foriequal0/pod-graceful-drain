@@ -10,7 +10,7 @@ use kube::client::Status;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse};
 use kube::{Api, ResourceExt};
 
-use crate::error_codes::{is_404_not_found_error, is_410_gone_error};
+use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
 use crate::impersonate::impersonate;
 use crate::patch::{make_patch_eviction_to_dry_run, patch_pod_isolate};
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
@@ -236,7 +236,7 @@ async fn check_eviction_permission(
 
     match api.into_client().request::<Status>(req).await {
         Ok(_) => Ok(EvictionPermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             Ok(EvictionPermissionCheckResult::Gone)
         }
         Err(err) => Err(err.into()),

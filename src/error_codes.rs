@@ -32,12 +32,12 @@ pub fn is_409_conflict_error(err: &Error) -> bool {
     )
 }
 
-pub fn is_410_gone_error(err: &Error) -> bool {
+pub fn is_410_expired_error(err: &Error) -> bool {
     matches!(
         err,
         Error::Api(ErrorResponse {
             code: STATUS_CODE_410_GONE,
-            ..
+            .. // reason: "Expired". It seems that reason is changing from "Gone"
         })
     )
 }

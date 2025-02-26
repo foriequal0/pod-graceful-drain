@@ -22,7 +22,7 @@ use crate::consts::{
     DRAIN_UNTIL_ANNOTATION_KEY, ORIGINAL_LABELS_ANNOTATION_KEY,
 };
 use crate::error_codes::{
-    is_404_not_found_error, is_409_conflict_error, is_410_gone_error,
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
     is_generic_server_response_422_invalid_for_json_patch_error, is_transient_error,
 };
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
@@ -58,7 +58,7 @@ where
             Ok(new_res) => {
                 return Ok(Some(new_res));
             }
-            Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+            Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
                 return Ok(None); // this is what we desire.
             }
             Err(err) => err,
@@ -84,7 +84,7 @@ where
 
             let refreshed = api.get(&name).await;
             match refreshed {
-                Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+                Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
                     // Resource is gone
                     return Ok(None);
                 }
