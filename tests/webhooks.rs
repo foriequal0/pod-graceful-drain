@@ -1,3 +1,5 @@
+mod testutils;
+
 use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -11,8 +13,8 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::api::{EvictParams, ListParams, ObjectList};
 use kube::Api;
+use kube::api::{EvictParams, ListParams, ObjectList};
 use rcgen::generate_simple_self_signed;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
@@ -20,11 +22,9 @@ use pod_graceful_drain::{
     Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
 };
 
-use crate::testutils::context::{within_test_namespace, TestContext};
+use crate::testutils::context::{TestContext, within_test_namespace};
 use crate::testutils::event_tracker::EventTracker;
 use crate::testutils::operations::install_test_host_service;
-
-mod testutils;
 
 async fn generate_self_signed_cert(
     subject: String,

@@ -1,9 +1,9 @@
-use eyre::eyre;
 use eyre::Result;
+use eyre::eyre;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
+use kube::Resource;
 use kube::api::{DeleteParams, Preconditions, PropagationPolicy};
 use kube::runtime::reflector::ObjectRef;
-use kube::Resource;
 
 pub fn get_object_ref_from_name<K: Resource>(
     name: impl AsRef<str>,

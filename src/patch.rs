@@ -1,32 +1,32 @@
 use std::fmt::Debug;
 
-use backoff::backoff::Backoff;
 use backoff::ExponentialBackoff;
+use backoff::backoff::Backoff;
 use chrono::{DateTime, SecondsFormat, Utc};
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result, eyre};
 use json_patch::{Patch, PatchOperation, TestOperation};
 use jsonptr::PointerBuf;
 use k8s_openapi::api::{core::v1::Pod, policy::v1::Eviction};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
-use k8s_openapi::serde::de::DeserializeOwned;
 use k8s_openapi::serde::Serialize;
+use k8s_openapi::serde::de::DeserializeOwned;
 use kube::api::PatchParams;
 use kube::core::NamespaceResourceScope;
 use kube::{Resource, ResourceExt};
 use serde_json::Value;
 use tracing::trace;
 
+use crate::LoadBalancingConfig;
 use crate::api_resolver::ApiResolver;
 use crate::consts::{
-    DELETE_OPTIONS_ANNOTATION_KEY, DRAINING_LABEL_KEY, DRAIN_CONTROLLER_ANNOTATION_KEY,
-    DRAIN_UNTIL_ANNOTATION_KEY, ORIGINAL_LABELS_ANNOTATION_KEY,
+    DELETE_OPTIONS_ANNOTATION_KEY, DRAIN_CONTROLLER_ANNOTATION_KEY, DRAIN_UNTIL_ANNOTATION_KEY,
+    DRAINING_LABEL_KEY, ORIGINAL_LABELS_ANNOTATION_KEY,
 };
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
-use crate::status::{
-    is_404_not_found_error, is_409_conflict_error, is_410_gone_error,
+use crate::error_codes::{
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
     is_generic_server_response_422_invalid_for_json_patch_error, is_transient_error,
 };
-use crate::LoadBalancingConfig;
+use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 
 async fn apply_patch<K>(
     api_resolver: &ApiResolver,
@@ -58,7 +58,7 @@ where
             Ok(new_res) => {
                 return Ok(Some(new_res));
             }
-            Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+            Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
                 return Ok(None); // this is what we desire.
             }
             Err(err) => err,
@@ -84,7 +84,7 @@ where
 
             let refreshed = api.get(&name).await;
             match refreshed {
-                Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+                Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
                     // Resource is gone
                     return Ok(None);
                 }
@@ -257,7 +257,7 @@ mod tests {
     use super::*;
 
     use chrono::DateTime;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
     macro_rules! from_json {
         ($($json:tt)+) => {

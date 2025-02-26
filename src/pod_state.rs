@@ -1,14 +1,15 @@
-use genawaiter::{rc::gen, yield_};
+use std::collections::{HashMap, HashSet};
+
+use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::runtime::reflector::ObjectRef;
 use kube::{Resource, ResourceExt};
-use std::collections::{HashMap, HashSet};
 
-use crate::elbv2::apis::TargetType;
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;
+use crate::elbv2::apis::TargetType;
 use crate::reflector::Stores;
 use crate::utils::get_object_ref_from_name;
-use crate::{try_some, Config};
+use crate::{Config, try_some};
 
 pub fn is_pod_ready(pod: &Pod) -> bool {
     let readiness_gates = {
@@ -57,7 +58,7 @@ pub fn is_pod_exposed(config: &Config, stores: &Stores, pod: &Pod) -> bool {
 
 fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
-    let ingress_exposed_services = gen!({
+    let ingress_exposed_services = r#gen!({
         let mut seen = HashSet::new();
         let pod_namespace = pod.metadata.namespace.as_ref();
         for ingress in stores.ingresses() {
@@ -102,7 +103,7 @@ fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
 
 fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
-    let tgb_exposed_service = gen!({
+    let tgb_exposed_service = r#gen!({
         let mut seen = HashSet::new();
         let pod_namespace = pod.metadata.namespace.as_ref();
         for tgb in stores.target_group_bindings() {
@@ -170,7 +171,7 @@ mod tests {
     use std::hash::Hash;
     use std::time::Duration;
 
-    use kube::runtime::reflector::{store, Store};
+    use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
     macro_rules! from_json {

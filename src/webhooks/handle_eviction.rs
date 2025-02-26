@@ -1,7 +1,7 @@
 use std::default::Default;
 
 use chrono::{Duration, SecondsFormat, Utc};
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result, eyre};
 use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::{ObjectReference, Pod};
 use k8s_openapi::api::policy::v1::Eviction;
@@ -10,15 +10,16 @@ use kube::client::Status;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse};
 use kube::{Api, ResourceExt};
 
+use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
 use crate::impersonate::impersonate;
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
+use crate::patch::{make_patch_eviction_to_dry_run, patch_pod_isolate};
+use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::status::{is_404_not_found_error, is_410_gone_error};
 use crate::utils::{get_object_ref_from_name, to_delete_params};
-use crate::webhooks::patch::make_patch_eviction_to_dry_run;
+use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
-use crate::webhooks::{debug_report_for_ref, patch_pod_isolate, AppState, InterceptResult};
-use crate::{try_some, ApiResolver};
+use crate::webhooks::{AppState, debug_report_for_ref};
+use crate::{ApiResolver, try_some};
 
 /// The handler patches CREATE Eviction request as dry-run.
 /// The controller will delete them later anyhow.
@@ -235,7 +236,7 @@ async fn check_eviction_permission(
 
     match api.into_client().request::<Status>(req).await {
         Ok(_) => Ok(EvictionPermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             Ok(EvictionPermissionCheckResult::Gone)
         }
         Err(err) => Err(err.into()),

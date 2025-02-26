@@ -11,18 +11,19 @@ use k8s_openapi::api::{
     networking::v1::Ingress,
 };
 use kube::runtime::reflector::store::Writer;
-use kube::runtime::reflector::{store, ObjectRef, Store};
-use kube::runtime::watcher;
+use kube::runtime::reflector::{ObjectRef, Store, store};
 use kube::runtime::watcher::Event;
+use kube::runtime::{WatchStreamExt, watcher};
 use kube::{Api, Resource};
-use tracing::{error, span, trace, Level};
+use tracing::{Level, debug, error, span, trace};
 
 use crate::api_resolver::ApiResolver;
 use crate::elbv2::apis::TargetGroupBinding;
+use crate::error_codes::is_410_expired_error_response;
 use crate::service_registry::ServiceSignal;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::{instrumented, try_some, Config, ServiceRegistry};
+use crate::{Config, ServiceRegistry, instrumented, try_some};
 
 #[derive(Clone)]
 pub struct Stores {
@@ -146,9 +147,9 @@ pub fn start_reflectors(
 fn run_reflector<K>(
     shutdown: &Shutdown,
     writer: Writer<K>,
-    stream: impl Stream<Item = watcher::Result<Event<K>>>,
+    stream: impl Stream<Item = watcher::Result<Event<K>>> + 'static,
     signal: ServiceSignal,
-) -> impl Future<Output = ()>
+) -> impl Future<Output = ()> + 'static
 where
     K: Resource + k8s_openapi::Resource + Clone,
     K::DynamicType: Default + Eq + Hash + Clone,
@@ -160,12 +161,13 @@ where
             async move {
                 let mut results = Box::pin(
                     kube::runtime::reflector(writer, stream)
+                        .default_backoff()
                         .take_until(shutdown.wait_shutdown_triggered()),
                 );
 
                 // Log until Event::InitDone
                 while let Some(result) = results.next().await {
-                    log(&result);
+                    log(&result, true);
 
                     // TODO : raise appropriate signal when Event::Init restarted
                     if let Ok(Event::InitDone) = result {
@@ -175,10 +177,10 @@ where
                 }
 
                 while let Some(result) = results.next().await {
-                    log(&result)
+                    log(&result, false);
                 }
 
-                fn log<K>(result: &watcher::Result<Event<K>>)
+                fn log<K>(result: &watcher::Result<Event<K>>, init: bool)
                 where
                     K: Resource,
                     K::DynamicType: Default,
@@ -204,6 +206,14 @@ where
                                 trace!("stream restart done");
                             }
                         },
+                        Err(watcher::Error::WatchFailed(err)) if !init => {
+                            debug!(?err, "watch failed. stream will restart soon");
+                        }
+                        Err(watcher::Error::WatchError(resp))
+                            if !init && is_410_expired_error_response(resp) =>
+                        {
+                            debug!(?resp, "watch error. stream will restart");
+                        }
                         Err(err) => {
                             error!(?err, "reflector error");
                         }

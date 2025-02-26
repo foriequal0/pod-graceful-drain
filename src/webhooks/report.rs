@@ -1,7 +1,7 @@
 use k8s_openapi::api::core::v1::{ObjectReference, Pod};
-use kube::runtime::events::{Event, EventType, Recorder};
 use kube::Resource;
-use tracing::{debug, event_enabled, info, warn, Level};
+use kube::runtime::events::{Event, EventType, Recorder};
+use tracing::{Level, debug, event_enabled, info, warn};
 
 use crate::webhooks::AppState;
 async fn report(

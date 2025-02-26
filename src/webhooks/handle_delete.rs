@@ -1,22 +1,24 @@
 use chrono::{Duration, SecondsFormat, Utc};
-use eyre::{eyre, Context, Result};
+use eyre::{Context, Result, eyre};
 use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use k8s_openapi::apimachinery::pkg::runtime::RawExtension;
+use kube::ResourceExt;
 use kube::api::Request;
 use kube::core::admission::AdmissionRequest;
-use kube::ResourceExt;
 use serde::Deserialize;
 
-use crate::impersonate::impersonate;
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
-use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::status::{is_404_not_found_error, is_410_gone_error};
-use crate::utils::to_delete_params;
-use crate::webhooks::report::{debug_report_for, report_for};
-use crate::webhooks::{patch_pod_isolate, AppState, InterceptResult};
 use crate::ApiResolver;
+use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
+use crate::impersonate::impersonate;
+use crate::patch::patch_pod_isolate;
+use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
+use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::utils::to_delete_params;
+use crate::webhooks::AppState;
+use crate::webhooks::handle_common::InterceptResult;
+use crate::webhooks::report::{debug_report_for, report_for};
 
 /// This handler delays the admission of DELETE Pod request.
 ///
@@ -218,7 +220,7 @@ async fn check_delete_permission(
 
     match api.into_client().request_status::<Pod>(req).await {
         Ok(_) => Ok(DeletePermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             Ok(DeletePermissionCheckResult::Gone)
         }
         Err(err) => Err(err.into()),
