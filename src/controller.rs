@@ -19,7 +19,7 @@ use tracing::{debug, error, info, span, trace, Level};
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
 use crate::error_codes::{
-    is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error, is_transient_error,
 };
 use crate::loadbalancing::LoadBalancingConfig;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
@@ -177,7 +177,7 @@ async fn log_reconcile_result(
                     debug!(%object_ref, ?err, "conflict");
                 }
                 ReconcileError::KubeError(err)
-                    if is_404_not_found_error(&err) || is_410_gone_error(&err) =>
+                    if is_404_not_found_error(&err) || is_410_expired_error(&err) =>
                 {
                     // reconciler is late
                     debug!(%object_ref, ?err, "gone");
@@ -214,7 +214,7 @@ async fn delete_pod(api_resolver: &ApiResolver, pod: &Pod) -> kube::Result<()> {
             info!("pod is deleted");
             Ok(())
         }
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             debug!("pod is gone anyway"); // This is what we desired.
             Ok(())
         }
@@ -237,7 +237,7 @@ async fn evict_pod(
             info!("pod is evicted");
             Ok(())
         }
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             debug!("pod is gone anyway"); // This is what we desired.
             Ok(())
         }

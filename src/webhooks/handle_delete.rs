@@ -9,7 +9,7 @@ use kube::core::admission::AdmissionRequest;
 use kube::ResourceExt;
 use serde::Deserialize;
 
-use crate::error_codes::{is_404_not_found_error, is_410_gone_error};
+use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
 use crate::impersonate::impersonate;
 use crate::patch::patch_pod_isolate;
 use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
@@ -220,7 +220,7 @@ async fn check_delete_permission(
 
     match api.into_client().request_status::<Pod>(req).await {
         Ok(_) => Ok(DeletePermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             Ok(DeletePermissionCheckResult::Gone)
         }
         Err(err) => Err(err.into()),
