@@ -9,11 +9,13 @@ from .subprocess_util import handle_error, print_command, to_bytes
 class KubectlContext:
     def __init__(self, kubeconfig: str, /, namespace: str | None):
         self.kubeconfig = kubeconfig
-        self.namespace = namespace if namespace else _random_name()
+        self.namespace = namespace if namespace else "default"
+        self.create_namespace = True if namespace else False
 
     def __enter__(self):
-        kubectl(self, "create", "namespace", self.namespace)
-        kubectl(self, "label", "namespace", self.namespace, "test=true")
+        if self.create_namespace:
+            kubectl(self, "create", "namespace", self.namespace)
+            kubectl(self, "label", "namespace", self.namespace, "test=true")
         # it takes some time to fully create some resources
         sleep(1)
 
@@ -28,7 +30,8 @@ class KubectlContext:
 
             return
 
-        kubectl(self, "delete", "namespace", self.namespace, "--ignore-not-found")
+        if self.create_namespace:
+            kubectl(self, "delete", "namespace", self.namespace, "--ignore-not-found")
 
 
 def _get_command(context: KubectlContext, /, *args):
@@ -37,7 +40,9 @@ def _get_command(context: KubectlContext, /, *args):
     if context.kubeconfig is not None:
         command.extend(["--kubeconfig", context.kubeconfig])
 
-    command.extend(["--namespace", context.namespace])
+    if context.namespace is not None:
+        command.extend(["--namespace", context.namespace])
+
     command.extend(args)
 
     return command

@@ -34,7 +34,14 @@ def test_drain_self(tmp_path: Path):
             kind_ctx.cluster_name,
         )
 
-        helm_install(kubectl_ctx, values={"hardPodAntiAffinity": "true"})
+        helm_install(
+            kubectl_ctx,
+            "pod-graceful-drain",
+            values={
+                "experimentalGeneralIngress": "true",
+                "hardPodAntiAffinity": "true",
+            },
+        )
 
         kubectl_stdin(
             kubectl_ctx,
@@ -116,7 +123,14 @@ def test_drain_other(tmp_path: Path):
             kind_ctx.cluster_name,
         )
 
-        helm_install(kubectl_ctx, values={"hardPodAntiAffinity": "true"})
+        helm_install(
+            kubectl_ctx,
+            "pod-graceful-drain",
+            values={
+                "experimentalGeneralIngress": "true",
+                "hardPodAntiAffinity": "true",
+            },
+        )
 
         # forcefully place some-pod to worker2
         kubectl_stdin(
