@@ -9,12 +9,6 @@ rules:
     resources: [ events ]
     verbs: [ create ]
   - apiGroups: [ "" ]
-    resources: [ users, groups, serviceaccounts ]
-    verbs: [ impersonate ]
-  - apiGroups: [ "authentication.k8s.io" ]
-    resources: [ "*" ] # uids, userextras/*
-    verbs: [ impersonate ]
-  - apiGroups: [ "" ]
     resources: [ nodes ]
     verbs: [ get, list, watch ]
   - apiGroups: [ "" ]

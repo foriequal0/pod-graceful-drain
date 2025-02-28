@@ -5,7 +5,6 @@ mod controller;
 mod downward_api;
 mod elbv2;
 mod error_codes;
-mod impersonate;
 mod loadbalancing;
 mod patch;
 mod pod_draining_info;

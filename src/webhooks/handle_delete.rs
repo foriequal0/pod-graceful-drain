@@ -1,21 +1,11 @@
 use chrono::{Duration, SecondsFormat, Utc};
 use eyre::{Context, Result, eyre};
-use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::Pod;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
-use k8s_openapi::apimachinery::pkg::runtime::RawExtension;
-use kube::ResourceExt;
-use kube::api::Request;
 use kube::core::admission::AdmissionRequest;
-use serde::Deserialize;
 
-use crate::ApiResolver;
-use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
-use crate::impersonate::impersonate;
 use crate::patch::patch_pod_isolate;
 use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::utils::to_delete_params;
 use crate::webhooks::AppState;
 use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
@@ -41,7 +31,6 @@ use crate::webhooks::report::{debug_report_for, report_for};
 pub async fn delete_handler(
     state: &AppState,
     request: &AdmissionRequest<Pod>,
-    user_info: &UserInfo,
 ) -> Result<InterceptResult> {
     let pod = request
         .old_object
@@ -88,22 +77,6 @@ pub async fn delete_handler(
             }
 
             let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
-
-            if let DeletePermissionCheckResult::Gone =
-                check_delete_permission(&state.api_resolver, pod, &request.options, user_info)
-                    .await
-                    .context("checking permission")?
-            {
-                debug_report_for(
-                    state,
-                    pod,
-                    "AllowDeletion",
-                    "Gone",
-                    "Pod is already gone".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
 
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
@@ -183,46 +156,5 @@ pub async fn delete_handler(
             Ok(InterceptResult::Allow)
         }
         PodDrainingInfo::AnnotationParseError { message } => Err(eyre!(message)),
-    }
-}
-
-#[must_use]
-enum DeletePermissionCheckResult {
-    Ok,
-    Gone,
-}
-
-async fn check_delete_permission(
-    api_resolver: &ApiResolver,
-    pod: &Pod,
-    raw_options: &Option<RawExtension>,
-    user_info: &UserInfo,
-) -> Result<DeletePermissionCheckResult> {
-    // we might've checked it using `SubjectAccessReview`,
-    // but there might be other custom webhooks that implements custom access control.
-    // so we dry-run delete to check them.
-    let api = api_resolver.api_for(pod);
-
-    let delete_options = if let Some(delete_options) = raw_options {
-        DeleteOptions::deserialize(&delete_options.0)?
-    } else {
-        DeleteOptions::default()
-    };
-
-    let name = pod.name_any();
-    let delete_params = to_delete_params(delete_options, true)?;
-
-    let mut req = Request::new(api.resource_url())
-        .delete(&name, &delete_params)
-        .context("building request")?;
-    req.extensions_mut().insert("delete-impersonated"); // for otel trace
-    impersonate(&mut req, user_info)?;
-
-    match api.into_client().request_status::<Pod>(req).await {
-        Ok(_) => Ok(DeletePermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
-            Ok(DeletePermissionCheckResult::Gone)
-        }
-        Err(err) => Err(err.into()),
     }
 }
