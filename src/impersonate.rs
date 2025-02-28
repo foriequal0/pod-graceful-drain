@@ -28,6 +28,14 @@ pub fn impersonate<T>(req: &mut Request<T>, user_info: &UserInfo) -> Result<()> 
 
     if let Some(extra) = &user_info.extra {
         for (key, values) in extra {
+            // this prefix causes the following error:
+            // 'userextras.authentication.k8s.io \"*****\" is forbidden: User \"system:serviceaccount:pod-graceful-drain:pod-graceful-drain\" cannot impersonate resource \"userextras/sigs.k8s.io/aws-iam-authenticator/principalid\" in API group \"authentication.k8s.io\" at the cluster scope: UserInfo extra keys cannot use reserved namespace sigs.k8s.io/aws-iam-authenticator: Forbidden'
+            // The userextra value comes from: https://github.com/kubernetes-sigs/aws-iam-authenticator/blob/c486a6fdbe1e1982f0852fcd7360c91de6367d4f/pkg/server/server.go#L399
+            // which introduced in this PR: https://github.com/kubernetes-sigs/aws-iam-authenticator/pull/743/files
+            if key.starts_with("sigs.k8s.io/") {
+                continue;
+            }
+
             let header_name = to_header_name("impersonate-extra-", key)?;
 
             for value in values {
