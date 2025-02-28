@@ -18,7 +18,7 @@ use pod_graceful_drain::{
     Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
 };
 
-use crate::testutils::context::{within_test_cluster, TestContext};
+use crate::testutils::context::{TestContext, within_test_cluster};
 use crate::testutils::event_tracker::EventTracker;
 use crate::testutils::operations::install_test_host_service;
 

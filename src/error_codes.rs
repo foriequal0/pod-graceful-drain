@@ -1,5 +1,5 @@
-use kube::error::ErrorResponse;
 use kube::Error;
+use kube::error::ErrorResponse;
 
 const STATUS_CODE_404_NOT_FOUND: u16 = 404;
 const STATUS_CODE_408_TIMEOUT: u16 = 408;
@@ -32,13 +32,17 @@ pub fn is_409_conflict_error(err: &Error) -> bool {
     )
 }
 
-pub fn is_410_gone_error(err: &Error) -> bool {
+pub fn is_410_expired_error(err: &Error) -> bool {
+    matches!(err, Error::Api(err) if is_410_expired_error_response(err))
+}
+
+pub fn is_410_expired_error_response(err: &ErrorResponse) -> bool {
     matches!(
         err,
-        Error::Api(ErrorResponse {
+        ErrorResponse {
             code: STATUS_CODE_410_GONE,
-            ..
-        })
+            .. // reason: "Expired". It seems that reason is changing from "Gone"
+        }
     )
 }
 
@@ -58,7 +62,7 @@ pub fn is_transient_error(err: &Error) -> bool {
         Error::Api(ErrorResponse {
             code:
                 STATUS_CODE_408_TIMEOUT
-                | STATUS_CODE_429_TOO_MANY_REQUESTS // related to PodDisruptionBudget 
+                | STATUS_CODE_429_TOO_MANY_REQUESTS // related to PodDisruptionBudget
                 | STATUS_CODE_500_INTERNAL_SERVER_ERROR
                 | STATUS_CODE_502_BAD_GATEWAY
                 | STATUS_CODE_503_SERVICE_UNAVAILABLE

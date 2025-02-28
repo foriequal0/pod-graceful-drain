@@ -1,6 +1,6 @@
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::{DeleteParams, EvictParams, Preconditions};
 use kube::ResourceExt;
+use kube::api::{DeleteParams, EvictParams, Preconditions};
 
 use crate::consts::DELETE_OPTIONS_ANNOTATION_KEY;
 use crate::utils::to_delete_params;

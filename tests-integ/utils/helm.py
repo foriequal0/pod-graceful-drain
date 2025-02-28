@@ -11,8 +11,6 @@ def _get_command(ctx: KubectlContext, /, *args):
     if ctx.kubeconfig is not None:
         command.extend(["--kubeconfig", ctx.kubeconfig])
 
-    command.extend(["--namespace", ctx.namespace])
-
     command.extend(args)
     return command
 
@@ -26,6 +24,7 @@ def helm(kubectl_ctx: KubectlContext, /, *args):
 
 def helm_install(
     kubectl_ctx: KubectlContext,
+    namespace: str,
     repository: str | None = None,
     tag: str | None = None,
     values: dict[str, str] | None = None,
@@ -34,9 +33,10 @@ def helm_install(
     tag = tag if tag else "latest"
 
     set_values_args = []
-    for key, value in values.items():
-        set_values_args.append("--set")
-        set_values_args.append(f"{key}={value}")
+    if values:
+        for key, value in values.items():
+            set_values_args.append("--set")
+            set_values_args.append(f"{key}={value}")
 
     proj_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     helm(
@@ -45,12 +45,11 @@ def helm_install(
         "pod-graceful-drain",
         os.path.join(proj_dir, "charts/pod-graceful-drain"),
         "--create-namespace",
+        f"--namespace={namespace}",
         "--set",
         f"image.repository={repo}",
         "--set",
         f"image.tag={tag}",
-        "--set",
-        "experimentalGeneralIngress=true",
         "--set",
         "logLevel=info\\,pod_graceful_drain=trace",
         *set_values_args,

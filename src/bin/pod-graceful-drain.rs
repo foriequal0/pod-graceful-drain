@@ -5,16 +5,16 @@ use clap::Parser;
 use color_eyre::config::Frame;
 use eyre::Result;
 use tokio::select;
-use tracing::{debug, error, info, Level};
+use tracing::{Level, debug, error, info};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::filter::FromEnvError;
 use tracing_subscriber::fmt::Layer;
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{filter::Directive, EnvFilter};
+use tracing_subscriber::{EnvFilter, filter::Directive};
 
 use pod_graceful_drain::{
-    start_controller, start_reflectors, start_webhook, ApiResolver, Config, DownwardAPI,
-    LoadBalancingConfig, ServiceRegistry, Shutdown, WebhookConfig,
+    ApiResolver, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, Shutdown,
+    WebhookConfig, start_controller, start_reflectors, start_webhook,
 };
 
 #[tokio::main(flavor = "current_thread")]

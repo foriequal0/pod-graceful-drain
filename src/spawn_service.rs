@@ -4,7 +4,7 @@ use std::time::Duration;
 use eyre::{Context, Result};
 use tokio::task::{JoinError, JoinHandle};
 use tokio::{select, spawn};
-use tracing::{debug, error, span, warn, Instrument, Level};
+use tracing::{Instrument, Level, debug, error, span, warn};
 
 use crate::shutdown::Shutdown;
 

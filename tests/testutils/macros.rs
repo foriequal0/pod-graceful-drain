@@ -1,8 +1,6 @@
 #[macro_export]
 macro_rules! eventually {
-    ($cond:expr $(,)?) => {{
-        eventually!(timeout = 10, $cond)
-    }};
+    ($cond:expr $(,)?) => {{ eventually!(timeout = 10, $cond) }};
 
     (timeout = $time:literal, $cond:expr $(,)?) => {{
         use ::std::time::Duration;
@@ -28,9 +26,7 @@ macro_rules! eventually {
 
 #[macro_export]
 macro_rules! eventually_some {
-    ($cond:expr $(,)?) => {{
-        eventually_some!(timeout = 10, $cond)
-    }};
+    ($cond:expr $(,)?) => {{ eventually_some!(timeout = 10, $cond) }};
 
     (timeout = $time:expr, $cond:expr $(,)?) => {{
         use ::std::time::Duration;

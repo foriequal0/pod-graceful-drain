@@ -36,11 +36,23 @@ metadata:
   tags:
     note: "test cluster by pod-graceful-drain test"
     created-at: "{datetime.datetime.now(datetime.UTC)}"
-autoModeConfig:
-  enabled: true
+managedNodeGroups:
+  - name: managed-ng-1
+    minSize: 2
+    iam: 
+      withAddonPolicies:
+        awsLoadBalancerController: true
 cloudWatch:
   clusterLogging:
     enableTypes: ["all"]
+iam:
+  withOIDC: true
+  serviceAccounts:
+  - metadata:
+      name: aws-load-balancer-controller
+      namespace: kube-system
+    wellKnownPolicies:
+      awsLoadBalancerController: true
 """,
         )
 
@@ -59,6 +71,15 @@ cloudWatch:
         )
 
         return self._kubeconfig
+
+    def write_kubeconfig(self):
+        eksctl(
+            self,
+            "utils",
+            "write-kubeconfig",
+            "--cluster",
+            self.cluster_name,
+        )
 
     def __enter__(self):
         self.create_cluster()

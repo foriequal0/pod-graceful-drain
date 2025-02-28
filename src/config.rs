@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use clap::Parser;
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use humantime::parse_duration;
 
 #[derive(Clone, Debug, Parser)]

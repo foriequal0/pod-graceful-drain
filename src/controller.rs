@@ -10,23 +10,24 @@ use kube::api::{DeleteParams, EvictParams, Preconditions};
 use kube::runtime::controller::Action;
 use kube::runtime::reflector::ObjectRef;
 use kube::runtime::watcher::Config;
-use kube::runtime::{controller, watcher, Controller};
+use kube::runtime::{Controller, controller, watcher};
 use kube::{Api, ResourceExt};
 use rand::{Rng, SeedableRng};
 use thiserror::Error;
-use tracing::{debug, error, info, span, trace, Level};
+use tracing::{Level, debug, error, info, span, trace};
 
 use crate::api_resolver::ApiResolver;
 use crate::consts::DRAINING_LABEL_KEY;
+use crate::error_codes::{
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
+    is_410_expired_error_response, is_transient_error,
+};
 use crate::loadbalancing::LoadBalancingConfig;
-use crate::pod_draining_info::{get_pod_draining_info, PodDrainingInfo};
+use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 use crate::pod_evict_params::get_pod_evict_params;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::status::{
-    is_404_not_found_error, is_409_conflict_error, is_410_gone_error, is_transient_error,
-};
-use crate::{instrumented, try_some, ServiceRegistry};
+use crate::{ServiceRegistry, instrumented, try_some};
 
 /// Start a controller that deletes deregistered pods.
 pub fn start_controller(
@@ -172,18 +173,33 @@ async fn log_reconcile_result(
             Ok((object_ref, action)) => {
                 trace!(%object_ref, ?action, "success");
             }
-            Err(controller::Error::ReconcilerFailed(err, object_ref)) => match err {
-                ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
-                    debug!(%object_ref, ?err, "conflict");
+            Err(controller::Error::ReconcilerFailed(reconcile_err, object_ref)) => {
+                match reconcile_err {
+                    ReconcileError::KubeError(err) if is_409_conflict_error(&err) => {
+                        debug!(%object_ref, ?err, "conflict on reconcile");
+                    }
+                    ReconcileError::KubeError(err)
+                        if is_404_not_found_error(&err) || is_410_expired_error(&err) =>
+                    {
+                        // reconciler is late
+                        debug!(%object_ref, ?err, "expired on reconcile");
+                    }
+                    _ => error!(%object_ref, ?reconcile_err, "error on reconcile"),
                 }
-                ReconcileError::KubeError(err)
-                    if is_404_not_found_error(&err) || is_410_gone_error(&err) =>
-                {
-                    // reconciler is late
-                    debug!(%object_ref, ?err, "gone");
+            }
+            Err(controller::Error::QueueError(queue_err)) => {
+                match queue_err {
+                    watcher::Error::WatchFailed(err) => {
+                        // restarting
+                        debug!(?err, "watch fail on queue");
+                    }
+                    watcher::Error::WatchError(resp) if is_410_expired_error_response(&resp) => {
+                        // reconciler is late
+                        debug!(?resp, "expired on queue");
+                    }
+                    _ => error!(?queue_err, "error on queue"),
                 }
-                _ => error!(%object_ref, ?err, "error"),
-            },
+            }
             Err(controller::Error::ObjectNotFound(object_ref)) => {
                 // reconciler is late
                 debug!(%object_ref, "gone");
@@ -214,7 +230,7 @@ async fn delete_pod(api_resolver: &ApiResolver, pod: &Pod) -> kube::Result<()> {
             info!("pod is deleted");
             Ok(())
         }
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             debug!("pod is gone anyway"); // This is what we desired.
             Ok(())
         }
@@ -237,7 +253,7 @@ async fn evict_pod(
             info!("pod is evicted");
             Ok(())
         }
-        Err(err) if is_404_not_found_error(&err) || is_410_gone_error(&err) => {
+        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
             debug!("pod is gone anyway"); // This is what we desired.
             Ok(())
         }

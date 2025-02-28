@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -7,7 +6,8 @@ import click
 from utils.aws import EcrContext, get_test_aws_profile
 from utils.eksctl import EksctlContext
 from utils.docker import DockerContext, docker
-from utils.helm import helm_install
+from utils.helm import helm_install, helm
+from utils.kubectl import KubectlContext, kubectl_stdin
 
 
 @click.group()
@@ -22,6 +22,19 @@ def setup():
         tmp_path = Path(tempdir)
         eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
         eks_ctx.create_cluster()
+
+        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), "default")
+        helm(
+            kubectl_ctx,
+            "install",
+            "aws-load-balancer-controller",
+            "aws-load-balancer-controller",
+            "--repo=https://aws.github.io/eks-charts",
+            "--namespace=kube-system",
+            f"--set=clusterName={eks_ctx.cluster_name}",
+            "--set=serviceAccount.create=false",
+            "--set= serviceAccount.name=aws-load-balancer-controller",
+        )
 
         ecr_ctx = EcrContext(aws_profile, "test-pgd")
         ecr_ctx.create_repository()
@@ -38,9 +51,91 @@ def setup():
             "localhost/pod-graceful-drain:latest",
             f"{ecr_ctx.repository_uri}:latest",
         )
+        helm_install(
+            kubectl_ctx,
+            "pod-graceful-drain",
+            ecr_ctx.repository_uri,
+        )
 
-        kubectl_ctx = eks_ctx.get_kubeconfig()
-        helm_install(kubectl_ctx, ecr_ctx.repository_uri)
+        kubectl_stdin(
+            kubectl_ctx,
+            "apply",
+            "-f",
+            "-",
+            stdin="""
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: alb
+spec:
+  controller: ingress.k8s.aws/alb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: some-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: app
+        image: public.ecr.aws/nginx/nginx
+        ports:
+        - name: http
+          containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: some-service
+spec:
+  ports:
+  - name: http
+    port: 80
+  selector:
+    app: nginx
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: some-ingress
+  annotations:
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  ingressClassName: alb
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: some-service
+            port:
+              name: http
+        pathType: Exact
+        path: /
+            """,
+        )
+
+
+@cli.command()
+def write_kubeconfig():
+    aws_profile = get_test_aws_profile()
+
+    with TemporaryDirectory(prefix="test-pgd-") as tempdir:
+        tmp_path = Path(tempdir)
+        eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
+        eks_ctx.write_kubeconfig()
 
 
 @cli.command()
