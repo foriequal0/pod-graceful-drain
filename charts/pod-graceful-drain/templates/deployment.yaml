@@ -125,7 +125,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      terminationGracePeriodSeconds: {{ template "pod-graceful-drain.timeoutSeconds" . }}
+      terminationGracePeriodSeconds: 30
       volumes:
         - name: cert
           secret:

@@ -40,6 +40,7 @@ def test_drain_self(tmp_path: Path):
             values={
                 "experimentalGeneralIngress": "true",
                 "hardPodAntiAffinity": "true",
+                "deleteAfter": "30s",
             },
         )
 
@@ -129,6 +130,7 @@ def test_drain_other(tmp_path: Path):
             values={
                 "experimentalGeneralIngress": "true",
                 "hardPodAntiAffinity": "true",
+                "deleteAfter": "30s",
             },
         )
 

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::future::Future;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::Json;
 use axum::http::StatusCode;
@@ -48,12 +48,15 @@ pub async fn handle_common<'a, K, Fut>(
     handle: impl FnOnce(&'a AppState, &'a AdmissionRequest<K>) -> Fut,
     state: &'a AppState,
     review: &'a AdmissionReview<K>,
+    timeout: Duration,
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>>
 where
     K: Resource + Debug + Serialize,
     K::DynamicType: Default,
     Fut: Future<Output = Result<InterceptResult>>,
 {
+    let start = Instant::now();
+
     let request = match &review.request {
         Some(request) => request,
         None => return ValueOrStatusCode::StatusCode(StatusCode::BAD_REQUEST),
@@ -108,7 +111,13 @@ where
                     ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review())
                 }
                 Ok(InterceptResult::Delay(duration)) => {
-                    tokio::time::sleep(duration).await;
+                    const DEADLINE_OFFSET: Duration = Duration::from_secs(2);
+
+                    let now = Instant::now();
+                    let deadline = start + timeout - DEADLINE_OFFSET;
+                    let to_sleep = deadline.min(now + duration) - now;
+
+                    tokio::time::sleep(to_sleep).await;
                     ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review())
                 }
                 Ok(InterceptResult::Patch(response)) => {

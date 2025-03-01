@@ -73,12 +73,3 @@ caCert: {{ $ca.Cert | b64enc }}
 clientCert: {{ $cert.Cert | b64enc }}
 clientKey: {{ $cert.Key | b64enc }}
 {{- end -}}
-
-{{/*
-Timeouts: +5s to deleteAfter
-*/}}
-{{- define "pod-graceful-drain.timeoutSeconds" -}}
-{{- $now := now -}}
-{{- $seconds := sub ($now | dateModify .Values.deleteAfter | unixEpoch) ($now | unixEpoch) -}}
-{{- printf "%d" (add $seconds 5) -}}
-{{- end }}
