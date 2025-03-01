@@ -26,7 +26,8 @@ def setup():
         kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), "default")
         helm(
             kubectl_ctx,
-            "install",
+            "upgrade",
+            "--install",
             "aws-load-balancer-controller",
             "aws-load-balancer-controller",
             "--repo=https://aws.github.io/eks-charts",
@@ -136,6 +137,36 @@ def write_kubeconfig():
         tmp_path = Path(tempdir)
         eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
         eks_ctx.write_kubeconfig()
+
+
+@cli.command()
+def update_image():
+    aws_profile = get_test_aws_profile()
+    with TemporaryDirectory(prefix="test-pgd-") as tempdir:
+        tmp_path = Path(tempdir)
+        eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
+
+        ecr_ctx = EcrContext(aws_profile, "test-pgd")
+        docker_ctx = DockerContext(
+            tmp_path, ecr_ctx.login_password, ecr_ctx.proxy_endpoint
+        )
+        docker(
+            docker_ctx,
+            "image",
+            "push",
+            "--authfile",
+            docker_ctx.authfile,
+            "localhost/pod-graceful-drain:latest",
+            f"{ecr_ctx.repository_uri}:latest",
+        )
+
+        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), "default")
+        helm_install(
+            kubectl_ctx,
+            "pod-graceful-drain",
+            ecr_ctx.repository_uri,
+            values={"image.pullPolicy": "Always"},
+        )
 
 
 @cli.command()
