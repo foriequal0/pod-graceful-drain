@@ -1,25 +1,17 @@
-use std::default::Default;
-
 use chrono::{Duration, SecondsFormat, Utc};
 use eyre::{Context, Result, eyre};
-use k8s_openapi::api::authentication::v1::UserInfo;
-use k8s_openapi::api::core::v1::{ObjectReference, Pod};
+use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::api::policy::v1::Eviction;
-use kube::api::{EvictParams, PostParams, Request};
-use kube::client::Status;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse};
-use kube::{Api, ResourceExt};
 
-use crate::error_codes::{is_404_not_found_error, is_410_expired_error};
-use crate::impersonate::impersonate;
 use crate::patch::{make_patch_eviction_to_dry_run, patch_pod_isolate};
 use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
 use crate::pod_state::{is_pod_exposed, is_pod_ready};
-use crate::utils::{get_object_ref_from_name, to_delete_params};
+use crate::try_some;
+use crate::utils::get_object_ref_from_name;
 use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
 use crate::webhooks::{AppState, debug_report_for_ref};
-use crate::{ApiResolver, try_some};
 
 /// The handler patches CREATE Eviction request as dry-run.
 /// The controller will delete them later anyhow.
@@ -32,7 +24,6 @@ use crate::{ApiResolver, try_some};
 pub async fn eviction_handler(
     state: &AppState,
     request: &AdmissionRequest<Eviction>,
-    user_info: &UserInfo,
 ) -> Result<InterceptResult> {
     let eviction = request
         .object
@@ -99,22 +90,6 @@ pub async fn eviction_handler(
             }
 
             let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
-
-            if let EvictionPermissionCheckResult::Gone =
-                check_eviction_permission(&state.api_resolver, &pod, eviction, user_info)
-                    .await
-                    .context("checking permission")?
-            {
-                debug_report_for(
-                    state,
-                    &pod,
-                    "AllowEviction",
-                    "Gone",
-                    "Pod is already gone".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
 
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
@@ -198,47 +173,4 @@ pub async fn eviction_handler(
         .context("attaching patch")?;
 
     Ok(InterceptResult::Patch(Box::new(response)))
-}
-
-#[must_use]
-enum EvictionPermissionCheckResult {
-    Ok,
-    Gone,
-}
-
-async fn check_eviction_permission(
-    api_resolver: &ApiResolver,
-    pod: &Pod,
-    eviction: &Eviction,
-    user_info: &UserInfo,
-) -> Result<EvictionPermissionCheckResult> {
-    // we might've checked it using `SubjectAccessReview`,
-    // but there might be other custom webhooks that implements custom access control.
-    // so we dry-run delete to check them.
-    let api: Api<Pod> = api_resolver.api_for(pod);
-
-    let name = eviction.name_any();
-    let delete_params =
-        to_delete_params(eviction.delete_options.clone().unwrap_or_default(), true)?;
-    let evict_params = EvictParams {
-        delete_options: Some(delete_params),
-        post_options: PostParams {
-            dry_run: true,
-            ..PostParams::default()
-        },
-    };
-
-    let mut req = Request::new(api.resource_url())
-        .evict(&name, &evict_params)
-        .context("building request")?;
-    req.extensions_mut().insert("evict-impersonated"); // for otel trace
-    impersonate(&mut req, user_info)?;
-
-    match api.into_client().request::<Status>(req).await {
-        Ok(_) => Ok(EvictionPermissionCheckResult::Ok),
-        Err(err) if is_404_not_found_error(&err) || is_410_expired_error(&err) => {
-            Ok(EvictionPermissionCheckResult::Gone)
-        }
-        Err(err) => Err(err.into()),
-    }
 }

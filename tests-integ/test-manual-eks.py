@@ -33,7 +33,7 @@ def setup():
             "--namespace=kube-system",
             f"--set=clusterName={eks_ctx.cluster_name}",
             "--set=serviceAccount.create=false",
-            "--set= serviceAccount.name=aws-load-balancer-controller",
+            "--set=serviceAccount.name=aws-load-balancer-controller",
         )
 
         ecr_ctx = EcrContext(aws_profile, "test-pgd")

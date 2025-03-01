@@ -6,7 +6,6 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use eyre::Result;
-use k8s_openapi::api::authentication::v1::UserInfo;
 use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::serde::Serialize;
 use kube::Resource;
@@ -15,7 +14,6 @@ use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview
 use kube::runtime::reflector::ObjectRef;
 use tracing::{Level, span, trace};
 
-use crate::impersonate::is_impersonated_self;
 use crate::instrumented;
 use crate::utils::get_object_ref_from_name;
 use crate::webhooks::AppState;
@@ -47,7 +45,7 @@ pub enum InterceptResult {
 }
 
 pub async fn handle_common<'a, K, Fut>(
-    handle: impl FnOnce(&'a AppState, &'a AdmissionRequest<K>, &'a UserInfo) -> Fut,
+    handle: impl FnOnce(&'a AppState, &'a AdmissionRequest<K>) -> Fut,
     state: &'a AppState,
     review: &'a AdmissionReview<K>,
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>>
@@ -86,28 +84,6 @@ where
                 return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
             }
 
-            if is_impersonated_self(&request.user_info) {
-                // impersonated reentry is always a dry-run
-                if !request.dry_run {
-                    return ValueOrStatusCode::StatusCode(StatusCode::BAD_REQUEST);
-                }
-
-                debug_report_for_ref(
-                    state,
-                    ObjectReference::from(object_ref),
-                    "Allow",
-                    "Reentry-Impersonated",
-                    format!(
-                        "operation={:?}, kind={}",
-                        request.operation,
-                        <K as Resource>::kind(&Default::default())
-                    ),
-                )
-                .await;
-
-                return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
-            }
-
             if request.dry_run {
                 debug_report_for_ref(
                     state,
@@ -125,7 +101,7 @@ where
                 return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
             }
 
-            let result = handle(state, request, &request.user_info).await;
+            let result = handle(state, request).await;
 
             match result {
                 Ok(InterceptResult::Allow) => {
