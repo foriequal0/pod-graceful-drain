@@ -1,7 +1,4 @@
-use chrono::{Duration, SecondsFormat, Utc};
-use eyre::{Context, Result, eyre};
-use k8s_openapi::api::core::v1::Pod;
-use kube::core::admission::AdmissionRequest;
+use std::time::Duration;
 
 use crate::patch::patch_pod_isolate;
 use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
@@ -9,6 +6,11 @@ use crate::pod_state::{is_pod_exposed, is_pod_ready};
 use crate::webhooks::AppState;
 use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
+
+use chrono::{DateTime, SecondsFormat, Utc};
+use eyre::{Context, Result, eyre};
+use k8s_openapi::api::core::v1::Pod;
+use kube::core::admission::AdmissionRequest;
 
 /// This handler delays the admission of DELETE Pod request.
 ///
@@ -31,7 +33,13 @@ use crate::webhooks::report::{debug_report_for, report_for};
 pub async fn delete_handler(
     state: &AppState,
     request: &AdmissionRequest<Pod>,
+    timeout: Duration,
 ) -> Result<InterceptResult> {
+    const DEADLINE_OFFSET: Duration = Duration::from_secs(1);
+
+    let started_at = Utc::now();
+    let deadline = started_at + timeout - DEADLINE_OFFSET;
+
     let pod = request
         .old_object
         .as_ref()
@@ -76,7 +84,7 @@ pub async fn delete_handler(
                 return Ok(InterceptResult::Allow);
             }
 
-            let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
+            let drain_until = started_at + state.config.delete_after;
 
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
@@ -106,30 +114,31 @@ pub async fn delete_handler(
                 "DelayDeletion",
                 "Drain",
                 format!(
-                    "Deletion is delayed, and the pod is isolated. It'll be deleted after '{}'",
+                    "Deletion is delayed, and the pod is isolated. It'll be deleted later ({})",
                     drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
                 ),
             )
             .await;
 
-            let duration = (drain_until - Utc::now()).to_std().unwrap_or_default();
-            Ok(InterceptResult::Delay(duration))
+            drain_until_or_deadline(state, pod, drain_until, deadline).await;
+            Ok(InterceptResult::Allow)
         }
         PodDrainingInfo::DrainUntil(drain_until) => {
-            if let Ok(duration) = (drain_until - Utc::now()).to_std() {
+            if Utc::now() < drain_until {
                 report_for(
                     state,
                     pod,
                     "DelayDeletion",
                     "Draining",
                     format!(
-                        "Deletion is delayed. It'll be deleted after '{}'",
+                        "Deletion is delayed. It'll be deleted later ({})",
                         drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
                     ),
                 )
                 .await;
 
-                Ok(InterceptResult::Delay(duration))
+                drain_until_or_deadline(state, pod, drain_until, deadline).await;
+                Ok(InterceptResult::Allow)
             } else {
                 debug_report_for(
                     state,
@@ -156,5 +165,39 @@ pub async fn delete_handler(
             Ok(InterceptResult::Allow)
         }
         PodDrainingInfo::AnnotationParseError { message } => Err(eyre!(message)),
+    }
+}
+
+async fn drain_until_or_deadline(
+    state: &AppState,
+    pod: &Pod,
+    drain_until: DateTime<Utc>,
+    deadline: DateTime<Utc>,
+) {
+    if drain_until < deadline {
+        let to_sleep = (drain_until - Utc::now()).to_std().unwrap_or_default();
+
+        tokio::time::sleep(to_sleep).await;
+
+        report_for(
+            state,
+            pod,
+            "AllowDeletion",
+            "Drained",
+            "Deletion is allowed because the pod is drained enough".to_string(),
+        )
+        .await;
+    } else {
+        let to_sleep = (deadline - Utc::now()).to_std().unwrap_or_default();
+        tokio::time::sleep(to_sleep).await;
+
+        report_for(
+            state,
+            pod,
+            "AllowDeletion",
+            "Timeout",
+            "Deletion is allowed because admission webhook timeout".to_string(),
+        )
+        .await;
     }
 }

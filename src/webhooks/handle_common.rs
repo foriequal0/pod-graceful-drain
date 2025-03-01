@@ -40,14 +40,14 @@ where
 
 pub enum InterceptResult {
     Allow,
-    Delay(Duration),
     Patch(Box<AdmissionResponse>),
 }
 
 pub async fn handle_common<'a, K, Fut>(
-    handle: impl FnOnce(&'a AppState, &'a AdmissionRequest<K>) -> Fut,
+    handle: impl FnOnce(&'a AppState, &'a AdmissionRequest<K>, Duration) -> Fut,
     state: &'a AppState,
     review: &'a AdmissionReview<K>,
+    timeout: Duration,
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>>
 where
     K: Resource + Debug + Serialize,
@@ -101,14 +101,10 @@ where
                 return ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review());
             }
 
-            let result = handle(state, request).await;
+            let result = handle(state, request, timeout).await;
 
             match result {
                 Ok(InterceptResult::Allow) => {
-                    ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review())
-                }
-                Ok(InterceptResult::Delay(duration)) => {
-                    tokio::time::sleep(duration).await;
                     ValueOrStatusCode::Value(AdmissionResponse::from(request).into_review())
                 }
                 Ok(InterceptResult::Patch(response)) => {

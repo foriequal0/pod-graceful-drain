@@ -143,6 +143,7 @@ jobs:
             --create-namespace --namespace pod-graceful-drain \
             --set image.repository=localhost/pod-graceful-drain --set image.tag=latest \
             --set replicaCount=1 \
+            --set deleteAfter=20s \
             --set experimentalGeneralIngress=true \
             --set logLevel=info\\,pod_graceful_drain=trace \
             --wait=true --timeout=1m

@@ -1,4 +1,6 @@
-use chrono::{Duration, SecondsFormat, Utc};
+use std::time::Duration;
+
+use chrono::{SecondsFormat, Utc};
 use eyre::{Context, Result, eyre};
 use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::api::policy::v1::Eviction;
@@ -24,6 +26,7 @@ use crate::webhooks::{AppState, debug_report_for_ref};
 pub async fn eviction_handler(
     state: &AppState,
     request: &AdmissionRequest<Eviction>,
+    _timeout: Duration,
 ) -> Result<InterceptResult> {
     let eviction = request
         .object
@@ -89,7 +92,7 @@ pub async fn eviction_handler(
                 return Ok(InterceptResult::Allow);
             }
 
-            let drain_until = Utc::now() + Duration::from_std(state.config.delete_after)?;
+            let drain_until = Utc::now() + state.config.delete_after;
 
             let patched_result = patch_pod_isolate(
                 &state.api_resolver,
@@ -119,7 +122,7 @@ pub async fn eviction_handler(
                 "InterceptEviction",
                 "Drain",
                 format!(
-                    "Eviction is intercepted, and the pod is isolated. It'll be deleted after '{}'",
+                    "Eviction is intercepted, and the pod is isolated. It'll be evicted later ({})",
                     drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
                 ),
             )
@@ -145,7 +148,7 @@ pub async fn eviction_handler(
                 "InterceptEviction",
                 "Draining",
                 format!(
-                    "Eviction is intercepted. It'll be deleted after '{}'",
+                    "Eviction is intercepted. It'll be evicted later ({})",
                     drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
                 ),
             )

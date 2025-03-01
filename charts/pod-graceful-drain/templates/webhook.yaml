@@ -28,7 +28,7 @@ webhooks:
         operations: [ DELETE ]
         resources: [ pods ]
     sideEffects: None
-    timeoutSeconds: {{ template "pod-graceful-drain.timeoutSeconds" . }}
+    timeoutSeconds: 30
     {{- with .Values.namespaceSelector }}
     namespaceSelector:
       {{- toYaml . | nindent 6 }}

@@ -7,8 +7,7 @@ mod report;
 mod self_recognize;
 mod try_bind;
 
-use std::net::SocketAddr;
-
+use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router, extract::State, routing::post};
@@ -17,7 +16,10 @@ use k8s_openapi::api::{core::v1::Pod, policy::v1::Eviction};
 use kube::core::DynamicObject;
 use kube::core::admission::AdmissionReview;
 use kube::runtime::events::Reporter;
+use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
+use std::net::SocketAddr;
+use std::time::Duration;
 use tracing::info;
 
 use crate::api_resolver::ApiResolver;
@@ -132,16 +134,41 @@ async fn metrics_handler(State(_state): State<AppState>) -> StatusCode {
     StatusCode::OK
 }
 
+#[derive(Deserialize)]
+struct QueryParams {
+    #[serde(deserialize_with = "parse_duration")]
+    timeout: Option<Duration>,
+}
+
+fn parse_duration<'de, D>(de: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let option = Option::<String>::deserialize(de)?;
+    let Some(option) = option else {
+        return Ok(None);
+    };
+
+    let duration = humantime::parse_duration(&option).map_err(serde::de::Error::custom)?;
+    Ok(Some(duration))
+}
+
 async fn mutate_handler(
     State(state): State<AppState>,
+    Query(QueryParams { timeout }): Query<QueryParams>,
     Json(review): Json<AdmissionReview<Eviction>>,
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>> {
-    handle_common(eviction_handler, &state, &review).await
+    let timeout = timeout.unwrap_or(Duration::from_secs(10));
+
+    handle_common(eviction_handler, &state, &review, timeout).await
 }
 
 async fn validate_handler(
     State(state): State<AppState>,
+    Query(QueryParams { timeout }): Query<QueryParams>,
     Json(review): Json<AdmissionReview<Pod>>,
 ) -> ValueOrStatusCode<AdmissionReview<DynamicObject>> {
-    handle_common(delete_handler, &state, &review).await
+    let timeout = timeout.unwrap_or(Duration::from_secs(10));
+
+    handle_common(delete_handler, &state, &review, timeout).await
 }

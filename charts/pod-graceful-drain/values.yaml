@@ -63,8 +63,12 @@ metrics:
 
 # Set the manager log level: info, debug (default: info)
 logLevel:
-# Amount of time that a pod is deleted after a denial of an admission (default: 20s, max: 25s)
-deleteAfter: 20s
+# Maximum amount of time that a pod is deleted/evicted after the admission hook.
+# It might not be respected (shorter/longer) when it is not appropriate
+# (e.g. mutation webhook has 30s of timeout, so it will be shorter)
+# The deregistration process usually takes 10~20 seconds, but it can take
+# up to 60 seconds to deregister during the cluster upgrade, so 90s for sure.
+deleteAfter: 90s
 experimentalGeneralIngress: false
 
 # webhook's namespaceSelector to limit where the pod-graceful-drain is applied

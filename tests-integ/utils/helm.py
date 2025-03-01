@@ -41,7 +41,8 @@ def helm_install(
     proj_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     helm(
         kubectl_ctx,
-        "install",
+        "upgrade",
+        "--install",
         "pod-graceful-drain",
         os.path.join(proj_dir, "charts/pod-graceful-drain"),
         "--create-namespace",
