@@ -18,7 +18,7 @@ def _get_command(ctx: KubectlContext, /, *args):
 def helm(kubectl_ctx: KubectlContext, /, *args):
     command = _get_command(kubectl_ctx, *args)
     print_command(command)
-    result = subprocess.run(command, capture_output=True)
+    result = subprocess.run(command)
     handle_error(result)
 
 
