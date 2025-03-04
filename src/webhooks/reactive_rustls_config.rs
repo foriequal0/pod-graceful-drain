@@ -39,11 +39,6 @@ pub async fn build_reactive_rustls_config(
 }
 
 async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
-    let config = {
-        let cert = load_cert_from(cert_dir).await?;
-        RustlsConfig::from_der(cert.certs, cert.key).await?
-    };
-
     let (watcher_tx, mut watcher_rx) = mpsc::channel(1);
     let mut watcher_stream = {
         let mut watcher = notify::recommended_watcher(move |_| {
@@ -61,6 +56,11 @@ async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
 
         let debounced = debounced(stream, Duration::from_secs(1));
         debounced.take_until(shutdown.wait_shutdown_triggered())
+    };
+
+    let config = {
+        let cert = load_cert_from(cert_dir).await?;
+        RustlsConfig::from_der(cert.certs, cert.key).await?
     };
 
     spawn_service(shutdown, "certwatcher", {
