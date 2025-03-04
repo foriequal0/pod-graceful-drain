@@ -1,20 +1,20 @@
-/.git/
+.git/
 
-/.github/
-/charts/
-/tests/
-/tests-integ/
-/.gitignore
-/LICENSE
-/README.md
-/.python-version
-/pyproject.toml
-/requirements.lock
-/requirements-dev.lock
-/skaffold.yaml
+.github/
+charts/
+tests/
+tests-integ/
+.gitignore
+LICENSE
+README.md
+.python-version
+pyproject.toml
+requirements.lock
+requirements-dev.lock
+skaffold.yaml
 
-/.venv/
-/target/
+.venv/
+target/
 *.egg-info
 
-/.idea/
+.idea/

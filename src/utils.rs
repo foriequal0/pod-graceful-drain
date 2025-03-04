@@ -60,7 +60,6 @@ macro_rules! instrumented {
             $($tt)*
         }
         .instrument(span)
-        .await
     }}
 }
 
