@@ -67,6 +67,7 @@ async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
         let config = config.clone();
         let cert_dir = cert_dir.to_path_buf();
         async move {
+            let mut prev_cert: Option<SerializedCertifiedKey> = None;
             while watcher_stream.next().await.is_some() {
                 let cert = match load_cert_from(&cert_dir).await {
                     Ok(cert) => cert,
@@ -76,10 +77,22 @@ async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
                     }
                 };
 
-                if let Err(err) = config.reload_from_der(cert.certs, cert.key).await {
+                if let Some(prev_cert) = prev_cert.as_ref() {
+                    if cert.key == prev_cert.key && cert.certs == prev_cert.certs {
+                        continue;
+                    }
+                }
+
+                if let Err(err) = config
+                    .reload_from_der(cert.certs.clone(), cert.key.clone())
+                    .await
+                {
                     error!(?err, "Reloading cert fail");
                     continue;
                 };
+
+                prev_cert = Some(cert);
+                info!("cert reloaded");
             }
         }
     })?;
