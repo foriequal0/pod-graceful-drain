@@ -68,7 +68,8 @@ pub async fn start_webhook(
             },
         });
 
-    let rustls_config = build_reactive_rustls_config(&webhook_config.cert, shutdown).await?;
+    let rustls_config =
+        build_reactive_rustls_config(&webhook_config.cert, api_resolver, shutdown).await?;
 
     let addr_incoming = try_bind(&webhook_config.bind).await?;
     let local_addr = addr_incoming.local_addr()?;

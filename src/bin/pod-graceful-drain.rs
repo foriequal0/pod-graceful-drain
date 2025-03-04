@@ -59,7 +59,7 @@ async fn try_main(config: Config, shutdown: &Shutdown) -> Result<()> {
     start_webhook(
         &api_resolver,
         config,
-        WebhookConfig::controller_runtime_default(),
+        WebhookConfig::controller_runtime_default(downward_api.get_release_fullname()?),
         reflectors,
         &service_registry,
         &loadbalancing,

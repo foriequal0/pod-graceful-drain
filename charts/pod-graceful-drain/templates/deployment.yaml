@@ -64,6 +64,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
+            - name: RELEASE_FULLNAME
+              value: {{ include "pod-graceful-drain.fullname" . }}
 
           readinessProbe:
             httpGet:
@@ -81,10 +83,6 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - mountPath: /tmp/k8s-webhook-server/serving-certs
-              name: cert
-              readOnly: true
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -126,8 +124,3 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: 30
-      volumes:
-        - name: cert
-          secret:
-            defaultMode: 420
-            secretName: {{ template "pod-graceful-drain.fullname" . }}-cert

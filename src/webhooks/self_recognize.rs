@@ -52,6 +52,7 @@ mod tests {
             pod_service_account_name: Some(String::from("some-sa")),
             pod_name: None,
             pod_uid: None,
+            release_fullname: None,
         };
         let user_info = UserInfo {
             username: Some(String::from("system:serviceaccount:some-namespace:some-sa")),
@@ -74,6 +75,7 @@ mod tests {
             pod_service_account_name: Some(String::from("some-sa")),
             pod_name: None,
             pod_uid: None,
+            release_fullname: None,
         };
 
         let user_info = UserInfo {
