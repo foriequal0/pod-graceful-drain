@@ -155,73 +155,71 @@ where
     K::DynamicType: Default + Eq + Hash + Clone,
 {
     let shutdown = shutdown.clone();
-    async move {
-        instrumented!(
-            span!(Level::ERROR, "reflector", "{}", K::KIND),
-            async move {
-                let stream = stream
-                    .default_backoff()
-                    .take_until(shutdown.wait_shutdown_triggered());
+    instrumented!(
+        span!(Level::ERROR, "reflector", "{}", K::KIND),
+        async move {
+            let stream = stream
+                .default_backoff()
+                .take_until(shutdown.wait_shutdown_triggered());
 
-                let mut results = Box::pin(kube::runtime::reflector(writer, stream));
+            let mut results = Box::pin(kube::runtime::reflector(writer, stream));
 
-                // Log until Event::InitDone
-                while let Some(result) = results.next().await {
-                    log(&result, true);
+            // Log until Event::InitDone
+            while let Some(result) = results.next().await {
+                log(&result, true);
 
-                    // TODO : raise appropriate signal when Event::Init restarted
-                    if let Ok(Event::InitDone) = result {
-                        signal.ready();
-                        break;
+                // TODO : raise appropriate signal when Event::Init restarted
+                if let Ok(Event::InitDone) = result {
+                    signal.ready();
+                    break;
+                }
+            }
+
+            while let Some(result) = results.next().await {
+                log(&result, false);
+            }
+
+            fn log<K>(result: &watcher::Result<Event<K>>, init: bool)
+            where
+                K: Resource,
+                K::DynamicType: Default,
+            {
+                match result {
+                    Ok(event) => match event {
+                        Event::Apply(resource) => {
+                            let object_ref = ObjectRef::from_obj(resource);
+                            trace!(%object_ref, "resource applied");
+                        }
+                        Event::Delete(resource) => {
+                            let object_ref = ObjectRef::from_obj(resource);
+                            trace!(%object_ref, "resource deleted");
+                        }
+                        Event::Init => {
+                            trace!("stream restart");
+                        }
+                        Event::InitApply(resource) => {
+                            let object_ref = ObjectRef::from_obj(resource);
+                            trace!(%object_ref, "stream restarting");
+                        }
+                        Event::InitDone => {
+                            trace!("stream restart done");
+                        }
+                    },
+                    Err(watcher::Error::WatchFailed(err)) if !init => {
+                        debug!(?err, "watch failed. stream will restart soon");
                     }
-                }
-
-                while let Some(result) = results.next().await {
-                    log(&result, false);
-                }
-
-                fn log<K>(result: &watcher::Result<Event<K>>, init: bool)
-                where
-                    K: Resource,
-                    K::DynamicType: Default,
-                {
-                    match result {
-                        Ok(event) => match event {
-                            Event::Apply(resource) => {
-                                let object_ref = ObjectRef::from_obj(resource);
-                                trace!(%object_ref, "resource applied");
-                            }
-                            Event::Delete(resource) => {
-                                let object_ref = ObjectRef::from_obj(resource);
-                                trace!(%object_ref, "resource deleted");
-                            }
-                            Event::Init => {
-                                trace!("stream restart");
-                            }
-                            Event::InitApply(resource) => {
-                                let object_ref = ObjectRef::from_obj(resource);
-                                trace!(%object_ref, "stream restarting");
-                            }
-                            Event::InitDone => {
-                                trace!("stream restart done");
-                            }
-                        },
-                        Err(watcher::Error::WatchFailed(err)) if !init => {
-                            debug!(?err, "watch failed. stream will restart soon");
-                        }
-                        Err(watcher::Error::WatchError(resp))
-                            if !init && is_410_expired_error_response(resp) =>
-                        {
-                            debug!(?resp, "watch error. stream will restart");
-                        }
-                        Err(err) => {
-                            error!(?err, "reflector error");
-                        }
+                    Err(watcher::Error::WatchError(resp))
+                        if !init && is_410_expired_error_response(resp) =>
+                    {
+                        debug!(?resp, "watch error. stream will restart");
+                    }
+                    Err(err) => {
+                        error!(?err, "reflector error");
                     }
                 }
             }
-        )
-    }
+        }
+    )
 }
 
 impl Stores {

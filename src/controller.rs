@@ -83,8 +83,7 @@ async fn reconcile(
     pod: Arc<Pod>,
     context: Arc<ReconcilerContext>,
 ) -> Result<Action, ReconcileError> {
-    let span = span!(Level::ERROR, "reconciler");
-    instrumented!(span, async move {
+    instrumented!(span!(Level::ERROR, "reconciler"), async move {
         if pod.metadata.deletion_timestamp.is_some() {
             return Ok(Action::requeue(DEFAULT_RECONCILE_DURATION));
         }
@@ -116,6 +115,7 @@ async fn reconcile(
 
         Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
     })
+    .await
 }
 
 fn get_stable_jitter(pod: &Pod, context: &ReconcilerContext) -> Duration {
@@ -167,8 +167,7 @@ fn error_policy(pod: Arc<Pod>, err: &ReconcileError, _context: Arc<ReconcilerCon
 async fn log_reconcile_result(
     result: Result<(ObjectRef<Pod>, Action), controller::Error<ReconcileError, watcher::Error>>,
 ) {
-    let span = span!(Level::ERROR, "reconciler");
-    instrumented!(span, async move {
+    instrumented!(span!(Level::ERROR, "reconciler"), async move {
         match result {
             Ok((object_ref, action)) => {
                 trace!(%object_ref, ?action, "success");
@@ -209,6 +208,7 @@ async fn log_reconcile_result(
             }
         }
     })
+    .await
 }
 
 async fn delete_pod(api_resolver: &ApiResolver, pod: &Pod) -> kube::Result<()> {
