@@ -159,11 +159,11 @@ where
         instrumented!(
             span!(Level::ERROR, "reflector", "{}", K::KIND),
             async move {
-                let mut results = Box::pin(
-                    kube::runtime::reflector(writer, stream)
-                        .default_backoff()
-                        .take_until(shutdown.wait_shutdown_triggered()),
-                );
+                let stream = stream
+                    .default_backoff()
+                    .take_until(shutdown.wait_shutdown_triggered());
+
+                let mut results = Box::pin(kube::runtime::reflector(writer, stream));
 
                 // Log until Event::InitDone
                 while let Some(result) = results.next().await {
