@@ -43,3 +43,29 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "pod-graceful-drain.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "pod-graceful-drain.fullname" . }}-role
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [ "" ]
+    resources: [ secrets ]
+    verbs: [ list, watch ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "pod-graceful-drain.fullname" . }}-rolebinding
+  labels:
+    {{- include "pod-graceful-drain.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "pod-graceful-drain.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pod-graceful-drain.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

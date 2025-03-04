@@ -49,4 +49,12 @@ impl ApiResolver {
             Api::all(self.client.clone())
         }
     }
+
+    pub fn default_namespaced<K>(&self) -> Api<K>
+    where
+        K: Resource<Scope = NamespaceResourceScope>,
+        K::DynamicType: Default,
+    {
+        Api::default_namespaced(self.client.clone())
+    }
 }

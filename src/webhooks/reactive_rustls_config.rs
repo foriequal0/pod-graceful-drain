@@ -1,111 +1,170 @@
-use axum_server::tls_rustls::RustlsConfig;
 use std::io::Cursor;
-use std::path::Path;
 use std::time::Duration;
 
-use debounced::debounced;
-use eyre::{Context, ContextCompat, Result};
+use axum_server::tls_rustls::RustlsConfig;
+use eyre::{Context, ContextCompat, Result, eyre};
 use futures::StreamExt;
-use genawaiter::sync::Gen;
-use notify::{RecursiveMode, Watcher};
+use k8s_openapi::ByteString;
+use k8s_openapi::api::core::v1::Secret;
+use kube::Api;
+use kube::runtime::{WatchStreamExt, watcher};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use tokio::fs::File;
-use tokio::io::copy;
-use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{Level, debug, error, info, span};
 
+use crate::error_codes::is_410_expired_error_response;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
-use crate::webhooks::config::CertConfig;
+use crate::webhooks::config::{CertConfig, SecretCertConfig};
+use crate::{ApiResolver, instrumented};
 
 const TLS_CRT: &str = "tls.crt";
 const TLS_KEY: &str = "tls.key";
 
 pub async fn build_reactive_rustls_config(
     config: &CertConfig,
+    api_resolver: &ApiResolver,
     shutdown: &Shutdown,
 ) -> Result<RustlsConfig> {
     match config {
-        CertConfig::CertDir(cert_dir) => {
-            let config = build(cert_dir, shutdown).await?;
-            Ok(config)
+        CertConfig::Secret(cert_config) => {
+            let rustls_config = build(api_resolver, cert_config, shutdown).await?;
+            Ok(rustls_config)
         }
         CertConfig::Override(cert, key) => {
-            let serialized = SerializedCertifiedKey::new_with(&[cert.clone()], key);
+            let serialized = Der::new_with(&[cert.clone()], key);
             let config = RustlsConfig::from_der(serialized.certs, serialized.key).await?;
             Ok(config)
         }
     }
 }
 
-async fn build(cert_dir: &Path, shutdown: &Shutdown) -> Result<RustlsConfig> {
-    let (watcher_tx, mut watcher_rx) = mpsc::channel(1);
-    let mut watcher_stream = {
-        let mut watcher = notify::recommended_watcher(move |_| {
-            let _ = watcher_tx.try_send(());
-        })?;
-        watcher.watch(&cert_dir.join(TLS_CRT), RecursiveMode::NonRecursive)?;
-        watcher.watch(&cert_dir.join(TLS_KEY), RecursiveMode::NonRecursive)?;
+enum State {
+    Initial {
+        config_tx: tokio::sync::oneshot::Sender<RustlsConfig>,
+    },
+    Running {
+        last_der: Der,
+        config: RustlsConfig,
+    },
+}
 
-        let stream = Gen::new(move |mut co| async move {
-            let _watcher = watcher; // move watcher into generator
-            while let Some(event) = watcher_rx.recv().await {
-                co.yield_(event).await;
-            }
-        });
-
-        let debounced = debounced(stream, Duration::from_secs(1));
-        debounced.take_until(shutdown.wait_shutdown_triggered())
-    };
-
-    let config = {
-        let cert = load_cert_from(cert_dir).await?;
-        RustlsConfig::from_der(cert.certs, cert.key).await?
-    };
+async fn build(
+    api_resolver: &ApiResolver,
+    cert_config: &SecretCertConfig,
+    shutdown: &Shutdown,
+) -> Result<RustlsConfig> {
+    let (config_tx, config_rx) = tokio::sync::oneshot::channel();
 
     spawn_service(shutdown, "certwatcher", {
-        let config = config.clone();
-        let cert_dir = cert_dir.to_path_buf();
-        async move {
-            let mut prev_cert: Option<SerializedCertifiedKey> = None;
-            while watcher_stream.next().await.is_some() {
-                let cert = match load_cert_from(&cert_dir).await {
-                    Ok(cert) => cert,
+        let shutdown = shutdown.clone();
+        let api: Api<Secret> = api_resolver.default_namespaced();
+        let config = watcher::Config::default()
+            .fields(&format!("metadata.name={}", cert_config.cert_secret_name));
+
+        instrumented!(span!(Level::ERROR, "certwatcher"), async move {
+            let mut stream = Box::pin(
+                watcher(api, config)
+                    .default_backoff()
+                    .take_until(shutdown.wait_shutdown_triggered())
+                    .applied_objects(),
+            );
+
+            let mut state = State::Initial { config_tx };
+
+            while let Some(result) = stream.next().await {
+                let secret = match result {
+                    Ok(secret) => secret,
                     Err(err) => {
-                        error!(?err, "Reloading cert fail");
+                        match err {
+                            watcher::Error::WatchFailed(err)
+                                if matches!(&state, &State::Running { .. }) =>
+                            {
+                                debug!(?err, "certwatcher failed. stream will restart soon");
+                            }
+                            watcher::Error::WatchError(resp)
+                                if matches!(&state, &State::Running { .. })
+                                    && is_410_expired_error_response(&resp) =>
+                            {
+                                debug!(?resp, "certwatcher error. stream will restart");
+                            }
+                            _ => {
+                                error!(?err, "certwatcher error");
+                            }
+                        };
+
                         continue;
                     }
                 };
 
-                if let Some(prev_cert) = prev_cert.as_ref() {
-                    if cert.key == prev_cert.key && cert.certs == prev_cert.certs {
+                let new_der = match load_cert_from_secret(&secret) {
+                    Ok(der) => der,
+                    Err(err) => {
+                        error!(%err, "cert reload err");
                         continue;
+                    }
+                };
+
+                match state {
+                    State::Initial { config_tx } => {
+                        let Der { certs, key } = new_der.clone();
+                        let config = match RustlsConfig::from_der(certs, key).await {
+                            Ok(config) => config,
+                            Err(err) => {
+                                error!(%err, "cert reload err");
+                                // reset the state
+                                state = State::Initial { config_tx };
+                                continue;
+                            }
+                        };
+
+                        if config_tx.send(config.clone()).is_err() {
+                            error!("certwatcher rx dropped");
+                            break;
+                        }
+
+                        info!("cert loaded");
+                        state = State::Running {
+                            last_der: new_der,
+                            config,
+                        }
+                    }
+                    State::Running { config, last_der } => {
+                        if last_der == new_der {
+                            // reset the state
+                            state = State::Running { config, last_der };
+                            continue;
+                        }
+
+                        let Der { certs, key } = new_der.clone();
+                        if let Err(err) = config.reload_from_der(certs, key).await {
+                            error!(%err, "cert reload err");
+                            // reset the state
+                            state = State::Running { config, last_der };
+                            continue;
+                        };
+
+                        info!("cert reloaded");
+                        state = State::Running {
+                            last_der: new_der,
+                            config,
+                        }
                     }
                 }
-
-                if let Err(err) = config
-                    .reload_from_der(cert.certs.clone(), cert.key.clone())
-                    .await
-                {
-                    error!(?err, "Reloading cert fail");
-                    continue;
-                };
-
-                prev_cert = Some(cert);
-                info!("cert reloaded");
             }
-        }
+        })
     })?;
 
+    let config = tokio::time::timeout(Duration::from_secs(10), config_rx).await??;
     Ok(config)
 }
 
-struct SerializedCertifiedKey {
+#[derive(PartialEq, Eq, Clone)]
+struct Der {
     certs: Vec<Vec<u8>>,
     key: Vec<u8>,
 }
 
-impl SerializedCertifiedKey {
+impl Der {
     fn new_with(cert_der: &[CertificateDer], key_der: &PrivateKeyDer) -> Self {
         let certs = cert_der
             .iter()
@@ -113,30 +172,33 @@ impl SerializedCertifiedKey {
             .collect();
         let key = Vec::from(key_der.secret_der());
 
-        SerializedCertifiedKey { certs, key }
+        Der { certs, key }
     }
 }
 
-async fn load_cert_from(cert_dir: &Path) -> Result<SerializedCertifiedKey> {
+fn load_cert_from_secret(secret: &Secret) -> Result<Der> {
+    let data = secret
+        .data
+        .as_ref()
+        .ok_or(eyre!("secret doesn't have data"))?;
+
     let certs = {
-        let path = cert_dir.join(TLS_CRT);
-        let mut file = File::open(&path).await.context(format!("File({path:?})"))?;
-        let mut crt = Vec::new();
-        copy(&mut file, &mut crt).await?;
+        let ByteString(crt) = data
+            .get(TLS_CRT)
+            .ok_or(eyre!("secret doesn't have '{TLS_CRT}'"))?;
         rustls_pemfile::certs(&mut Cursor::new(crt))
             .collect::<std::io::Result<Vec<_>>>()
-            .context(format!("Cert({path:?})"))?
+            .context(format!("Key({TLS_CRT})"))?
     };
 
     let key = {
-        let path = cert_dir.join(TLS_KEY);
-        let mut file = File::open(&path).await.context(format!("File({path:?}"))?;
-        let mut key = Vec::new();
-        copy(&mut file, &mut key).await?;
+        let ByteString(key) = data
+            .get(TLS_KEY)
+            .ok_or(eyre!("secret doesn't have '{TLS_KEY}'"))?;
         rustls_pemfile::private_key(&mut Cursor::new(key))
-            .context(format!("Key({path:?})"))?
+            .context(format!("Key({TLS_KEY})"))?
             .context("empty key")?
     };
 
-    Ok(SerializedCertifiedKey::new_with(&certs, &key))
+    Ok(Der::new_with(&certs, &key))
 }

@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
@@ -14,20 +13,30 @@ pub enum BindConfig {
 }
 
 pub enum CertConfig {
-    // Find certs `{CertDir}/{tls.crt,tls.key}`
-    CertDir(PathBuf),
+    // Find certs from secret
+    Secret(SecretCertConfig),
     // Override cert for test
     Override(CertificateDer<'static>, PrivateKeyDer<'static>),
 }
 
+pub struct SecretCertConfig {
+    pub cert_secret_name: String,
+}
+
+impl SecretCertConfig {
+    fn new(release_fullname: &str) -> Self {
+        let cert_secret_name = format!("{release_fullname}-cert");
+        Self { cert_secret_name }
+    }
+}
+
 impl WebhookConfig {
-    pub fn controller_runtime_default() -> Self {
-        // `sigs.k8s.io/controller-runtime` look for `{TempDir}/k8s-webhook-server/serving-certs/{tls.key,tls.crt}` files by default.
-        let temp_dir = std::env::temp_dir();
-        let default_path = temp_dir.join(Path::new("k8s-webhook-server/serving-certs"));
+    pub fn controller_runtime_default(release_fullname: &str) -> Self {
+        let config = SecretCertConfig::new(release_fullname);
+
         Self {
             bind: BindConfig::SocketAddr(SocketAddr::from(([0, 0, 0, 0], 9443))),
-            cert: CertConfig::CertDir(default_path),
+            cert: CertConfig::Secret(config),
         }
     }
 }
