@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   pod-graceful-drain:
   - apiVersion: v2
+    appVersion: v0.1.0-rc.8
+    created: "2025-03-05T06:50:46.724898635Z"
+    description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
+      "30"] } } }` '
+    digest: aa6a1a7602fbd018d6700db83a241214bf45d4b08d1d5f9465513bd6bab66160
+    name: pod-graceful-drain
+    type: application
+    urls:
+    - https://foriequal0.github.io/pod-graceful-drain/pod-graceful-drain-0.1.0-rc.8.tgz
+    version: 0.1.0-rc.8
+  - apiVersion: v2
     appVersion: v0.1.0-rc.7
-    created: "2025-03-01T10:29:47.637713754Z"
+    created: "2025-03-05T06:50:46.72456943Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 9b70aed9d57d416fce89a24876dd4339cb21345ab18e21ee07e7d3587f8db0e0
@@ -14,7 +25,7 @@ entries:
     version: 0.1.0-rc.7
   - apiVersion: v2
     appVersion: v0.1.0-rc.6
-    created: "2025-03-01T10:29:47.637402514Z"
+    created: "2025-03-05T06:50:46.724248521Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 696c5aba6d630c45d4f3482e581bdc22acdc0a3bf31e03f8caa5ee113eedc7f8
@@ -25,7 +36,7 @@ entries:
     version: 0.1.0-rc.6
   - apiVersion: v2
     appVersion: v0.1.0-rc.4
-    created: "2025-03-01T10:29:47.637035279Z"
+    created: "2025-03-05T06:50:46.723935386Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: bd84f86584aba27285a11efd35524e648f68e817775c53cb9976156c4757a9ef
@@ -36,7 +47,7 @@ entries:
     version: 0.1.0-rc.4
   - apiVersion: v2
     appVersion: v0.1.0-rc.3
-    created: "2025-03-01T10:29:47.636706305Z"
+    created: "2025-03-05T06:50:46.723582397Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: bf6b17e333ae3494c9045518ef09f0e8a0eaec3e60648554dd12a14f3ebdc646
@@ -47,7 +58,7 @@ entries:
     version: 0.1.0-rc.3
   - apiVersion: v2
     appVersion: v0.1.0-rc.2
-    created: "2025-03-01T10:29:47.636369607Z"
+    created: "2025-03-05T06:50:46.723272078Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 5737bbe1118416b13397b1a36c862e9a70df2e29eaf51495024a57b6f0acee44
@@ -58,7 +69,7 @@ entries:
     version: 0.1.0-rc.2
   - apiVersion: v2
     appVersion: v0.1.0-rc.1
-    created: "2025-03-01T10:29:47.636033239Z"
+    created: "2025-03-05T06:50:46.722947862Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 8f975dcdf837c97da71358689f2e1991229c872f649533e5998894581a4b7d76
@@ -69,7 +80,7 @@ entries:
     version: 0.1.0-rc.1
   - apiVersion: v2
     appVersion: v0.0.8
-    created: "2025-03-01T10:29:47.634198707Z"
+    created: "2025-03-05T06:50:46.721106714Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 959c83f5a098b557566b0bc38ed3c58f35ec9320439722265af52a883a7f3a2e
@@ -80,7 +91,7 @@ entries:
     version: 0.0.11
   - apiVersion: v2
     appVersion: v0.0.8
-    created: "2025-03-01T10:29:47.633881565Z"
+    created: "2025-03-05T06:50:46.720773471Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 3eb138aaaf9199ed6fe6e8c31cc046276b27fa3ffe2edcb372774df9c379df0f
@@ -91,7 +102,7 @@ entries:
     version: 0.0.10
   - apiVersion: v2
     appVersion: v0.0.8-beta.1
-    created: "2025-03-01T10:29:47.633540379Z"
+    created: "2025-03-05T06:50:46.720391568Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 86c70bb9abbafc1fa93272ab0e4ea1f9bb5a346cbf10c90d8fd6edfbb11f2ed3
@@ -102,7 +113,7 @@ entries:
     version: 0.0.10-beta.1
   - apiVersion: v2
     appVersion: v0.0.7
-    created: "2025-03-01T10:29:47.635718542Z"
+    created: "2025-03-05T06:50:46.722606424Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 2c506ad42e91244b478163613bc03f8010f072852f83a8afb23c89b0686d8391
@@ -113,7 +124,7 @@ entries:
     version: 0.0.9
   - apiVersion: v2
     appVersion: v0.0.7
-    created: "2025-03-01T10:29:47.635439191Z"
+    created: "2025-03-05T06:50:46.722324277Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 8c82a33a70e6546000f43103ba8628a57c19132bc252f2e6844718a089b260d0
@@ -124,7 +135,7 @@ entries:
     version: 0.0.8
   - apiVersion: v2
     appVersion: v0.0.7
-    created: "2025-03-01T10:29:47.635125416Z"
+    created: "2025-03-05T06:50:46.722032613Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 14b3c50ff8cdb02981d1c179ebb8ce16eb7cf42e1033cda07ea1a60002cb333e
@@ -135,7 +146,7 @@ entries:
     version: 0.0.7
   - apiVersion: v2
     appVersion: v0.0.6
-    created: "2025-03-01T10:29:47.634845854Z"
+    created: "2025-03-05T06:50:46.721748592Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 671c829fbce507b575e56f86e51059dd13eabd5f3f56fab21b8248c5ed33fd1c
@@ -146,7 +157,7 @@ entries:
     version: 0.0.6
   - apiVersion: v2
     appVersion: v0.0.6
-    created: "2025-03-01T10:29:47.634544552Z"
+    created: "2025-03-05T06:50:46.721422774Z"
     description: 'You don''t need `lifecycle: { preStop: { exec: { command: ["sleep",
       "30"] } } }` '
     digest: 823e6040ac85ecb92c16e26d602e9d956dd030a0bbdb4ebf9ffcd741cd8c3dab
@@ -155,4 +166,4 @@ entries:
     urls:
     - https://foriequal0.github.io/pod-graceful-drain/pod-graceful-drain-0.0.5.tgz
     version: 0.0.5
-generated: "2025-03-01T10:29:47.632220391Z"
+generated: "2025-03-05T06:50:46.718868233Z"
