@@ -17,7 +17,14 @@ pub struct Shutdown {
 impl Shutdown {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Shutdown {
-        Self::new_with_drain_signal(shutdown_signal())
+        Self::new_with_drain_signal(async {
+            shutdown_signal().await;
+
+            // pod termination and endpointslices deregistration seem to have race condition?
+            // https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+            // analogous to 'preStop: { exec: { command: ["sleep", "5"] } }'
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        })
     }
 
     pub fn new_with_drain_signal<F>(signal: F) -> Shutdown

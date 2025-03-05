@@ -65,13 +65,6 @@ def setup():
             "-f",
             "-",
             stdin="""
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: alb
-spec:
-  controller: ingress.k8s.aws/alb
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
