@@ -35,7 +35,7 @@ pub async fn delete_handler(
     request: &AdmissionRequest<Pod>,
     timeout: Duration,
 ) -> Result<InterceptResult> {
-    const DEADLINE_OFFSET: Duration = Duration::from_secs(1);
+    const DEADLINE_OFFSET: Duration = Duration::from_secs(5);
 
     let started_at = Utc::now();
     let deadline = started_at + timeout - DEADLINE_OFFSET;
