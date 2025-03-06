@@ -48,10 +48,17 @@ pub async fn eviction_handler(
         }
     }
 
-    let pod = state
-        .stores
-        .get_pod(&object_ref)
-        .ok_or(eyre!("pod is not found"))?;
+    let Some(pod) = state.stores.get_pod(&object_ref) else {
+        debug_report_for_ref(
+            state,
+            ObjectReference::from(object_ref),
+            "AllowEviction",
+            "Gone",
+            "Pod is already gone".to_string(),
+        )
+        .await;
+        return Ok(InterceptResult::Allow);
+    };
 
     if pod.metadata.deletion_timestamp.is_some() {
         debug_report_for(
@@ -108,7 +115,7 @@ pub async fn eviction_handler(
                 debug_report_for(
                     state,
                     &pod,
-                    "AllowDeletion",
+                    "AllowEviction",
                     "Gone",
                     "Pod is already gone".to_string(),
                 )
