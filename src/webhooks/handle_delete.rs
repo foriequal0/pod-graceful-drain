@@ -168,6 +168,8 @@ pub async fn delete_handler(
     }
 }
 
+/// I could've returned 429 TOO_MANY_REQUESTS with `retry-after` instead.
+/// But this is much easier with the same result.
 async fn drain_until_or_deadline(
     state: &AppState,
     pod: &Pod,
