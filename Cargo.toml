@@ -16,7 +16,7 @@ tokio = "1.43.0"
 futures = "0.3.31"
 
 # webhook libs
-axum = "0.8.1"
+axum = { version = "0.8.1", features = ["macros"] }
 axum-server = { version = "0.7.1", features = ["tls-rustls-no-provider"] }
 rustls = { version = "0.23.23", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"

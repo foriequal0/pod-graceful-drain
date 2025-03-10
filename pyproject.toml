@@ -19,4 +19,4 @@ dev-dependencies = [
 ]
 
 [tool.rye.scripts]
-test-manual-eks = "python tests-integ/test-manual-eks.py"
+test-manual-eks = "python tests/test-manual-eks.py"

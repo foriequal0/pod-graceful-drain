@@ -1,5 +1,3 @@
-use eyre::Result;
-use eyre::eyre;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::Resource;
 use kube::api::{DeleteParams, Preconditions, PropagationPolicy};
@@ -19,35 +17,34 @@ where
     }
 }
 
-pub(crate) fn to_delete_params(
-    delete_options: DeleteOptions,
-    dry_run: bool,
-) -> Result<DeleteParams> {
+pub(crate) fn to_delete_params(delete_options: &DeleteOptions) -> DeleteParams {
+    let dry_run = delete_options.dry_run.iter().flatten().any(|x| x == "All");
+    let grace_period_seconds = delete_options.grace_period_seconds.map(|x| x as _);
     let preconditions = delete_options
         .preconditions
+        .as_ref()
         .map(|preconditions| Preconditions {
             uid: preconditions.uid.clone(),
             resource_version: preconditions.resource_version.clone(),
         });
 
-    let propagation_policy =
-        if let Some(propagation_policy) = delete_options.propagation_policy.as_ref() {
-            match propagation_policy.as_str() {
-                "Orphan" => Some(PropagationPolicy::Orphan),
-                "Background" => Some(PropagationPolicy::Background),
-                "Foreground" => Some(PropagationPolicy::Foreground),
-                other => return Err(eyre!("Unknown propagation policy: '{other}'")),
-            }
-        } else {
+    let propagation_policy = match delete_options.propagation_policy.as_deref() {
+        Some("Orphan") => Some(PropagationPolicy::Orphan),
+        Some("Background") => Some(PropagationPolicy::Background),
+        Some("Foreground") => Some(PropagationPolicy::Foreground),
+        Some(_) => {
+            // TODO: report bug
             None
-        };
+        }
+        None => None,
+    };
 
-    Ok(DeleteParams {
+    DeleteParams {
         dry_run,
-        grace_period_seconds: delete_options.grace_period_seconds.map(|x| x as _),
+        grace_period_seconds,
         preconditions,
         propagation_policy,
-    })
+    }
 }
 
 #[macro_export]
@@ -71,6 +68,9 @@ macro_rules! try_some {
     (@coalesce ($($h:tt)*) ? $($t:tt)*) => {
         $crate::try_some!(@coalesce ($($h)*.as_ref()?) $($t)*)
     };
+    (@coalesce ($($h:tt)*) *? $($t:tt)*) => {
+        $crate::try_some!(@coalesce ($($h)*.as_deref()?) $($t)*)
+    };
     (@coalesce ($($h:tt)*) $m:tt $($t:tt)*) => {
         $crate::try_some!(@coalesce ($($h)* $m) $($t)*)
     };
@@ -80,6 +80,9 @@ macro_rules! try_some {
     };
     (@coalesce_mut ($($h:tt)*) ? $($t:tt)*) => {
         $crate::try_some!(@coalesce_mut ($($h)*.as_mut()?) $($t)*)
+    };
+    (@coalesce_mut ($($h:tt)*) *? $($t:tt)*) => {
+        $crate::try_some!(@coalesce_mut ($($h)*.as_deref_mut()?) $($t)*)
     };
     (@coalesce_mut ($($h:tt)*) $m:tt $($t:tt)*) => {
         $crate::try_some!(@coalesce_mut ($($h)* $m) $($t)*)
@@ -126,4 +129,60 @@ macro_rules! try_some {
             })
         }
     };
+}
+
+#[cfg(test)]
+#[macro_export]
+macro_rules! from_json {
+    ($($json:tt)+) => {{
+        ::serde_json::from_value(::serde_json::json!($($json)+)).expect("Invalid json")
+    }};
+}
+
+#[macro_export]
+macro_rules! pub_if_test {
+    ($($tt:tt)*) => {
+        #[cfg(test)]
+        pub $($tt)*;
+
+        #[cfg(not(test))]
+        $($tt)*;
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
+
+    #[test]
+    pub fn smoke_test_to_delete_params() {
+        let delete_options = DeleteOptions {
+            dry_run: Some(vec!["All".to_owned()]),
+            grace_period_seconds: Some(1234),
+            preconditions: Some(Preconditions {
+                uid: Some("uid".to_owned()),
+                resource_version: Some("resource_version".to_owned()),
+            }),
+            propagation_policy: Some("Orphan".to_owned()),
+            // other fields are ignored
+            ..DeleteOptions::default()
+        };
+
+        let delete_params = to_delete_params(&delete_options);
+
+        assert_eq!(
+            delete_params,
+            DeleteParams {
+                dry_run: true,
+                grace_period_seconds: Some(1234),
+                preconditions: Some(kube::api::Preconditions {
+                    uid: Some("uid".to_owned()),
+                    resource_version: Some("resource_version".to_owned()),
+                }),
+                propagation_policy: Some(PropagationPolicy::Orphan),
+            }
+        )
+    }
 }

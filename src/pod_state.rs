@@ -8,8 +8,30 @@ use kube::{Resource, ResourceExt};
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;
 use crate::elbv2::apis::TargetType;
 use crate::reflector::Stores;
+use crate::selector::matches_labels;
 use crate::utils::get_object_ref_from_name;
 use crate::{Config, try_some};
+
+pub fn is_pod_running(pod: &Pod) -> bool {
+    mod pod_phase {
+        pub const POD_PENDING: &str = "Pending";
+        const _POD_RUNNING: &str = "Running";
+        pub const POD_SUCCEEDED: &str = "Succeeded";
+        pub const POD_FAILED: &str = "Failed";
+    }
+
+    if let Some(pod_phase::POD_PENDING | pod_phase::POD_SUCCEEDED | pod_phase::POD_FAILED) =
+        try_some!(pod.status?.phase*?)
+    {
+        return false;
+    }
+
+    if pod.meta().deletion_timestamp.is_some() {
+        return false;
+    }
+
+    true
+}
 
 pub fn is_pod_ready(pod: &Pod) -> bool {
     let readiness_gates = {
@@ -17,6 +39,7 @@ pub fn is_pod_ready(pod: &Pod) -> bool {
         // "Ready" is required even if not listed in readiness gate
         result.insert("Ready");
 
+        // readiness_gates are reflected to "Ready" state, so this is unnecessary
         if let Some(readiness_gates) = try_some!(pod.spec?.readiness_gates?) {
             for readiness_gate in readiness_gates {
                 result.insert(readiness_gate.condition_type.as_str());
@@ -152,33 +175,21 @@ fn is_exposing_service(stores: &Stores, pod: &Pod, service_ref: ObjectRef<Servic
         return false;
     };
 
-    let Some(selector) = try_some!(service.spec?.selector?) else {
-        return false;
-    };
-
-    for (key, value) in selector.iter() {
-        if pod.labels().get(key) != Some(value) {
-            return false;
-        }
-    }
-
-    true
+    let selector_labels = try_some!(service.spec?.selector?);
+    matches_labels(pod, selector_labels)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::hash::Hash;
     use std::time::Duration;
 
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
-    macro_rules! from_json {
-        ($($json:tt)+) => {
-            ::serde_json::from_value(::serde_json::json!($($json)+)).expect("Invalid json")
-        };
-    }
+    use crate::from_json;
 
     fn store_from<K>(iter: impl IntoIterator<Item = K>) -> Store<K>
     where
@@ -334,6 +345,7 @@ mod tests {
             store_from([service]),
             store_from([ingress]),
             store_from([]),
+            store_from([]),
         );
 
         assert!(is_pod_exposed(
@@ -389,6 +401,7 @@ mod tests {
             store_from([pod.clone()]),
             store_from([service]),
             store_from([]),
+            store_from([]),
             store_from([tgb]),
         );
 
@@ -429,6 +442,7 @@ mod tests {
         let stores = Stores::new(
             store_from([pod.clone()]),
             store_from([service]),
+            store_from([]),
             store_from([]),
             store_from([]),
         );
@@ -490,6 +504,7 @@ mod tests {
             store_from([service]),
             store_from([ingress]),
             store_from([]),
+            store_from([]),
         );
 
         assert!(!is_pod_exposed(
@@ -547,6 +562,7 @@ mod tests {
             store_from([pod.clone()]),
             store_from([service]),
             store_from([ingress]),
+            store_from([]),
             store_from([]),
         );
 

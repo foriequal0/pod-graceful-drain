@@ -1,8 +1,4 @@
-use k8s_openapi::api::core::v1::Pod;
-use kube::ResourceExt;
 use uuid::Uuid;
-
-use crate::consts;
 
 #[derive(Clone, Debug)]
 pub struct LoadBalancingConfig {
@@ -28,13 +24,5 @@ impl LoadBalancingConfig {
 
     pub fn get_id(&self) -> &str {
         &self.instance_id
-    }
-
-    pub fn controls(&self, pod: &Pod) -> bool {
-        let annotation = pod
-            .annotations()
-            .get(consts::DRAIN_CONTROLLER_ANNOTATION_KEY);
-
-        matches!(annotation, Some(uuid) if uuid == &self.instance_id)
     }
 }

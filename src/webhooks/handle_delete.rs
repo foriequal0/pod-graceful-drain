@@ -1,13 +1,15 @@
 use std::time::Duration;
 
-use crate::patch::patch_pod_isolate;
-use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
-use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
+use crate::report::{debug_report_for, report_for};
 use crate::webhooks::AppState;
 use crate::webhooks::handle_common::InterceptResult;
-use crate::webhooks::report::{debug_report_for, report_for};
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use crate::labels_and_annotations::{
+    DrainingLabelValue, get_pod_drain_timestamp, get_pod_draining_label_value,
+};
+use crate::patch::drain::{PatchToDrainCaller, PatchToDrainOutcome, patch_to_drain};
+use chrono::{DateTime, Utc};
 use eyre::{Context, Result, eyre};
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::AdmissionRequest;
@@ -30,7 +32,7 @@ use kube::core::admission::AdmissionRequest;
 /// * ReplicaSet controller: it can retry and progress.
 /// * `kubectl rollout restart`: It patches the deployment's annotation `kubectl.kubernetes.io/restartedAt`,
 ///    so it is controlled by ReplicaSet controller.
-pub async fn delete_handler(
+pub async fn handle_delete(
     state: &AppState,
     request: &AdmissionRequest<Pod>,
     timeout: Duration,
@@ -45,126 +47,143 @@ pub async fn delete_handler(
         .as_ref()
         .ok_or(eyre!("old_object for validation is missing"))?;
 
-    if pod.metadata.deletion_timestamp.is_some() {
+    if !is_pod_running(pod) {
         debug_report_for(
-            state,
+            &state.recorder,
             pod,
             "AllowDeletion",
-            "AlreadyDeleted",
-            "Pod already have 'deletionTimestamp' on it".to_string(),
+            "AlreadyTerminated",
+            "Pod is not running".to_string(),
         )
         .await;
         return Ok(InterceptResult::Allow);
     }
 
-    let draining = get_pod_draining_info(pod);
-    match draining {
-        PodDrainingInfo::None => {
-            if !is_pod_ready(pod) {
-                debug_report_for(
-                    state,
-                    pod,
-                    "AllowDeletion",
-                    "NotReady",
-                    "Deletion is allowed because the pod is not ready".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
-
+    let draining_label_value = get_pod_draining_label_value(pod);
+    match draining_label_value {
+        // first delete request
+        Ok(None)
+        // eviction requested then deletion requested
+        | Ok(Some(DrainingLabelValue::Evicting)) => {
             if !is_pod_exposed(&state.config, &state.stores, pod) {
                 debug_report_for(
-                    state,
+                    &state.recorder,
                     pod,
                     "AllowDeletion",
                     "NotExposed",
                     "Deletion is allowed because the pod is not exposed".to_string(),
                 )
-                .await;
+                    .await;
                 return Ok(InterceptResult::Allow);
             }
 
-            let drain_until = started_at + state.config.delete_after;
-
-            let patched_result = patch_pod_isolate(
-                &state.api_resolver,
-                pod,
-                drain_until,
-                None,
-                &state.loadbalancing,
-            )
-            .await
-            .context("apply patch")?;
-
-            if patched_result.is_none() {
+            if !is_pod_ready(pod) {
                 debug_report_for(
-                    state,
+                    &state.recorder,
                     pod,
                     "AllowDeletion",
-                    "Gone",
-                    "Pod is already gone".to_string(),
+                    "NotReady",
+                    "Deletion is allowed because the pod is not ready".to_string(),
                 )
-                .await;
+                    .await;
                 return Ok(InterceptResult::Allow);
             }
 
+            let outcome = patch_to_drain(
+                pod,
+                &state.api_resolver,
+                &state.loadbalancing,
+                PatchToDrainCaller::Webhook,
+            )
+                .await
+                .context("patch")?;
+
+            let drain_until = match outcome {
+                PatchToDrainOutcome::Gone => {
+                    debug_report_for(
+                    &state.recorder,
+                        pod,
+                        "AllowDeletion",
+                        "Gone",
+                        "Pod is already gone".to_string(),
+                    )
+                        .await;
+                    return Ok(InterceptResult::Allow);
+                }
+                PatchToDrainOutcome::Draining { drain_timestamp } => {
+                    // TODO: precisely wait until deleted
+                    drain_timestamp + state.config.delete_after
+                }
+            };
+
             report_for(
-                state,
+                &state.recorder,
                 pod,
                 "DelayDeletion",
                 "Drain",
-                format!(
-                    "Deletion is delayed, and the pod is isolated. It'll be deleted later ({})",
-                    drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
+                String::from(
+                    "Deletion is delayed, and the pod is deregistering. It'll be deleted soon",
                 ),
             )
-            .await;
+                .await;
 
             drain_until_or_deadline(state, pod, drain_until, deadline).await;
             Ok(InterceptResult::Allow)
         }
-        PodDrainingInfo::DrainUntil(drain_until) => {
-            if Utc::now() < drain_until {
-                report_for(
-                    state,
-                    pod,
-                    "DelayDeletion",
-                    "Draining",
-                    format!(
-                        "Deletion is delayed. It'll be deleted later ({})",
-                        drain_until.to_rfc3339_opts(SecondsFormat::Secs, true),
-                    ),
-                )
-                .await;
+        Ok(Some(DrainingLabelValue::Draining)) => {
+            if let Ok(Some(drain_timestamp)) = get_pod_drain_timestamp(pod) {
+                // TODO: precisely wait until deleted
+                let drain_until = drain_timestamp + state.config.delete_after;
+                if Utc::now() < drain_until {
+                    report_for(
+                        &state.recorder,
+                        pod,
+                        "DelayDeletion",
+                        "Draining",
+                        "Deletion is delayed, it'll be deleted soon".to_owned(),
+                    )
+                        .await;
 
-                drain_until_or_deadline(state, pod, drain_until, deadline).await;
-                Ok(InterceptResult::Allow)
+                    drain_until_or_deadline(state, pod, drain_until, deadline).await;
+                    Ok(InterceptResult::Allow)
+                } else {
+                    debug_report_for(
+                        &state.recorder,
+                        pod,
+                        "AllowDeletion",
+                        "Expired",
+                        "Deletion is allowed because the pod is drained enough".to_string(),
+                    )
+                        .await;
+
+                    Ok(InterceptResult::Allow)
+                }
             } else {
                 debug_report_for(
-                    state,
+                    &state.recorder,
                     pod,
                     "AllowDeletion",
-                    "Expired",
-                    "Deletion is allowed because the pod is drained enough".to_string(),
+                    "Manual",
+                    "Deletion is allowed, manual resolve".to_string(),
                 )
-                .await;
+                    .await;
 
+                // TODO: report error, or recover error
                 Ok(InterceptResult::Allow)
             }
         }
-        PodDrainingInfo::DrainDisabled => {
+        Err(_) => {
             debug_report_for(
-                state,
+                &state.recorder,
                 pod,
                 "AllowDeletion",
-                "Disabled",
-                "Pod graceful drain is disabled".to_string(),
+                "Manual",
+                "Deletion is allowed, manual resolve".to_string(),
             )
-            .await;
+                .await;
 
             Ok(InterceptResult::Allow)
         }
-        PodDrainingInfo::AnnotationParseError { message } => Err(eyre!(message)),
     }
 }
 
@@ -182,7 +201,7 @@ async fn drain_until_or_deadline(
         tokio::time::sleep(to_sleep).await;
 
         report_for(
-            state,
+            &state.recorder,
             pod,
             "AllowDeletion",
             "Drained",
@@ -194,7 +213,7 @@ async fn drain_until_or_deadline(
         tokio::time::sleep(to_sleep).await;
 
         report_for(
-            state,
+            &state.recorder,
             pod,
             "AllowDeletion",
             "Timeout",

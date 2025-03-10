@@ -1,9 +1,3 @@
-use std::collections::{BTreeMap, HashSet};
-use std::future::Future;
-use std::io::Write;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-
 use eyre::{Context, Result};
 use k8s_openapi::api::core::v1::Namespace;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -11,15 +5,22 @@ use kube::api::{ApiResource, DeleteParams, DynamicObject};
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Api, Client, Config};
 use rand::Rng;
+use std::collections::{BTreeMap, HashSet};
+use std::future::Future;
+use std::io::Write;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 
-use pod_graceful_drain::{ApiResolver, LoadBalancingConfig, Shutdown};
-
-use crate::testutils::run_command::{CommandParams, get_command_output, run_command};
+use crate::tests::utils::run_command::{
+    CommandError, CommandParams, get_command_output, run_command,
+};
+use crate::{ApiResolver, LoadBalancingConfig, Shutdown};
 
 const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.32.0";
 const DEFAULT_TEST_CLUSTER_NAME: &str = "test-pgd";
@@ -189,7 +190,7 @@ async fn new_test_context(cluster_name: &str) -> Result<TestContext> {
         api_resolver: ApiResolver::try_new_within(config, &namespace)?,
         cluster_name: cluster_name.to_string(),
         namespace: namespace.clone(),
-        loadbalancing: LoadBalancingConfig::with_str("00000000-0000-0000-0000-000000000000"),
+        loadbalancing: LoadBalancingConfig::with_str("instance-id-1"),
         shutdown,
         teardown: Arc::new(Mutex::new(Vec::new())),
         cluster_resources: Arc::new(Mutex::new(HashSet::new())),
@@ -223,7 +224,19 @@ async fn get_temp_kubeconfig_file_from_kind(context: &str) -> Result<NamedTempFi
         args: &["get", "kubeconfig", "--name", context],
         stdin: None,
     };
-    let output = get_command_output(&params).await?;
+
+    let output = loop {
+        match get_command_output(&params).await {
+            Ok(output) => break output,
+            Err(CommandError::CommandFailed(err)) if err.code() == Some(1) => {
+                // concurrent 'kind get kubeconfig' invocations at once (e.g. running test in parallel)
+                // fail with exit code 1 on windows without apparent reason.
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    };
     file.as_file_mut().write_all(&output)?;
 
     Ok(file)

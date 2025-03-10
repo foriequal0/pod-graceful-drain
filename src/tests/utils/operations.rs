@@ -9,8 +9,8 @@ use k8s_openapi::{ClusterResourceScope, NamespaceResourceScope};
 use kube::api::{ApiResource, DynamicObject, Patch, PatchParams, PostParams};
 use kube::{Api, Resource, ResourceExt};
 
-use crate::testutils::context::TestContext;
-use crate::testutils::run_command::{CommandParams, run_command};
+use crate::tests::utils::context::TestContext;
+use crate::tests::utils::run_command::{CommandParams, run_command};
 
 pub async fn kubectl(context: &TestContext, args: &[&str], stdin: Option<&[u8]>) {
     let kubectl = std::env::var("KUBECTL").unwrap_or("kubectl".to_owned());
@@ -32,7 +32,7 @@ pub async fn kubectl(context: &TestContext, args: &[&str], stdin: Option<&[u8]>)
 #[macro_export]
 macro_rules! kubectl {
     ($ctx:expr, [$($arg:tt)*]) => {
-        $crate::testutils::operations::kubectl($ctx, &[$($arg)*], None).await
+        $crate::tests::utils::operations::kubectl($ctx, &[$($arg)*], None).await
     };
 }
 
@@ -89,14 +89,14 @@ macro_rules! apply_yaml {
         {
             let yaml = format!($yaml);
             let res = ::serde_yaml::from_str::<$kind>(&yaml).unwrap();
-            $crate::testutils::operations::apply($ctx, &res).await.unwrap()
+            $crate::tests::utils::operations::apply($ctx, &res).await.unwrap()
         }
     };
     ($ctx:expr, $kind:ty, $yaml:expr, $($arg:tt)+) => {
         {
             let yaml = format!($yaml, $($arg)+);
             let res = ::serde_yaml::from_str::<$kind>(&yaml).unwrap();
-            $crate::testutils::operations::apply($ctx, &res).await.unwrap()
+            $crate::tests::utils::operations::apply($ctx, &res).await.unwrap()
         }
     };
 }
