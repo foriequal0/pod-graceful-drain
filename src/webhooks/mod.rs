@@ -23,14 +23,14 @@ use std::time::Duration;
 use tracing::info;
 
 use crate::api_resolver::ApiResolver;
-use crate::config::Config;
-use crate::consts::CONTROLLER_NAME;
+use crate::configs::Config;
 use crate::downward_api::DownwardAPI;
+use crate::labels_and_annotations::CONTROLLER_NAME;
 use crate::reflector::Stores;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
 pub use crate::webhooks::config::WebhookConfig;
-use crate::webhooks::handle_common::{ValueOrStatusCode, handle_common};
+use crate::webhooks::handle_common::{HandlerResult, handle_common};
 use crate::webhooks::handle_delete::delete_handler;
 use crate::webhooks::handle_eviction::eviction_handler;
 use crate::webhooks::reactive_rustls_config::build_reactive_rustls_config;
@@ -158,7 +158,7 @@ async fn mutate_handler(
     State(state): State<AppState>,
     Query(QueryParams { timeout }): Query<QueryParams>,
     Json(review): Json<AdmissionReview<Eviction>>,
-) -> ValueOrStatusCode<AdmissionReview<DynamicObject>> {
+) -> HandlerResult<AdmissionReview<DynamicObject>> {
     let timeout = timeout.unwrap_or(Duration::from_secs(10));
 
     handle_common(eviction_handler, &state, &review, timeout).await
@@ -168,7 +168,7 @@ async fn validate_handler(
     State(state): State<AppState>,
     Query(QueryParams { timeout }): Query<QueryParams>,
     Json(review): Json<AdmissionReview<Pod>>,
-) -> ValueOrStatusCode<AdmissionReview<DynamicObject>> {
+) -> HandlerResult<AdmissionReview<DynamicObject>> {
     let timeout = timeout.unwrap_or(Duration::from_secs(10));
 
     handle_common(delete_handler, &state, &review, timeout).await

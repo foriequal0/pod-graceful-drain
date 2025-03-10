@@ -11,6 +11,27 @@ use crate::reflector::Stores;
 use crate::utils::get_object_ref_from_name;
 use crate::{Config, try_some};
 
+pub fn is_pod_running(pod: &Pod) -> bool {
+    mod pod_phase {
+        pub const POD_PENDING: &str = "Pending";
+        const _POD_RUNNING: &str = "Running";
+        pub const POD_SUCCEEDED: &str = "Succeeded";
+        pub const POD_FAILED: &str = "Failed";
+    }
+
+    if let Some(pod_phase::POD_PENDING | pod_phase::POD_SUCCEEDED | pod_phase::POD_FAILED) =
+        try_some!(pod.status?.phase*?)
+    {
+        return false;
+    }
+
+    if pod.meta().deletion_timestamp.is_some() {
+        return false;
+    }
+
+    true
+}
+
 pub fn is_pod_ready(pod: &Pod) -> bool {
     let readiness_gates = {
         let mut result = HashSet::new();
@@ -334,6 +355,7 @@ mod tests {
             store_from([service]),
             store_from([ingress]),
             store_from([]),
+            store_from([]),
         );
 
         assert!(is_pod_exposed(
@@ -389,6 +411,7 @@ mod tests {
             store_from([pod.clone()]),
             store_from([service]),
             store_from([]),
+            store_from([]),
             store_from([tgb]),
         );
 
@@ -429,6 +452,7 @@ mod tests {
         let stores = Stores::new(
             store_from([pod.clone()]),
             store_from([service]),
+            store_from([]),
             store_from([]),
             store_from([]),
         );
@@ -490,6 +514,7 @@ mod tests {
             store_from([service]),
             store_from([ingress]),
             store_from([]),
+            store_from([]),
         );
 
         assert!(!is_pod_exposed(
@@ -547,6 +572,7 @@ mod tests {
             store_from([pod.clone()]),
             store_from([service]),
             store_from([ingress]),
+            store_from([]),
             store_from([]),
         );
 

@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use crate::patch::patch_pod_isolate;
-use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
-use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::pod_draining_state::{PodDrainingState, get_pod_draining_state};
+use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
 use crate::webhooks::AppState;
 use crate::webhooks::handle_common::InterceptResult;
 use crate::webhooks::report::{debug_report_for, report_for};
 
+use crate::patch::patch_to_drain::patch_to_drain;
 use chrono::{DateTime, SecondsFormat, Utc};
 use eyre::{Context, Result, eyre};
 use k8s_openapi::api::core::v1::Pod;
@@ -45,33 +45,21 @@ pub async fn delete_handler(
         .as_ref()
         .ok_or(eyre!("old_object for validation is missing"))?;
 
-    if pod.metadata.deletion_timestamp.is_some() {
+    if is_pod_running(&pod) {
         debug_report_for(
             state,
-            pod,
+            &pod,
             "AllowDeletion",
-            "AlreadyDeleted",
-            "Pod already have 'deletionTimestamp' on it".to_string(),
+            "AlreadyTerminated",
+            "Pod is not running".to_string(),
         )
         .await;
         return Ok(InterceptResult::Allow);
     }
 
-    let draining = get_pod_draining_info(pod);
+    let draining = get_pod_draining_state(pod);
     match draining {
-        PodDrainingInfo::None => {
-            if !is_pod_ready(pod) {
-                debug_report_for(
-                    state,
-                    pod,
-                    "AllowDeletion",
-                    "NotReady",
-                    "Deletion is allowed because the pod is not ready".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
-
+        PodDrainingState::None => {
             if !is_pod_exposed(&state.config, &state.stores, pod) {
                 debug_report_for(
                     state,
@@ -84,17 +72,24 @@ pub async fn delete_handler(
                 return Ok(InterceptResult::Allow);
             }
 
+            if !is_pod_ready(pod) {
+                debug_report_for(
+                    state,
+                    pod,
+                    "AllowDeletion",
+                    "NotReady",
+                    "Deletion is allowed because the pod is not ready".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
             let drain_until = started_at + state.config.delete_after;
 
-            let patched_result = patch_pod_isolate(
-                &state.api_resolver,
-                pod,
-                drain_until,
-                None,
-                &state.loadbalancing,
-            )
-            .await
-            .context("apply patch")?;
+            let patched_result =
+                patch_to_drain(&state.api_resolver, pod, drain_until, &state.loadbalancing)
+                    .await
+                    .context("apply patch")?;
 
             if patched_result.is_none() {
                 debug_report_for(
@@ -123,7 +118,7 @@ pub async fn delete_handler(
             drain_until_or_deadline(state, pod, drain_until, deadline).await;
             Ok(InterceptResult::Allow)
         }
-        PodDrainingInfo::DrainUntil(drain_until) => {
+        PodDrainingState::Draining { drain_until, .. } => {
             if Utc::now() < drain_until {
                 report_for(
                     state,
@@ -152,7 +147,7 @@ pub async fn delete_handler(
                 Ok(InterceptResult::Allow)
             }
         }
-        PodDrainingInfo::DrainDisabled => {
+        PodDrainingState::DrainDisabled => {
             debug_report_for(
                 state,
                 pod,
@@ -164,7 +159,7 @@ pub async fn delete_handler(
 
             Ok(InterceptResult::Allow)
         }
-        PodDrainingInfo::AnnotationParseError { message } => Err(eyre!(message)),
+        PodDrainingState::AnnotationParseError { message } => Err(eyre!(message)),
     }
 }
 

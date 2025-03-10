@@ -71,6 +71,9 @@ macro_rules! try_some {
     (@coalesce ($($h:tt)*) ? $($t:tt)*) => {
         $crate::try_some!(@coalesce ($($h)*.as_ref()?) $($t)*)
     };
+    (@coalesce ($($h:tt)*) *? $($t:tt)*) => {
+        $crate::try_some!(@coalesce ($($h)*.as_deref()?) $($t)*)
+    };
     (@coalesce ($($h:tt)*) $m:tt $($t:tt)*) => {
         $crate::try_some!(@coalesce ($($h)* $m) $($t)*)
     };
@@ -80,6 +83,9 @@ macro_rules! try_some {
     };
     (@coalesce_mut ($($h:tt)*) ? $($t:tt)*) => {
         $crate::try_some!(@coalesce_mut ($($h)*.as_mut()?) $($t)*)
+    };
+    (@coalesce_mut ($($h:tt)*) *? $($t:tt)*) => {
+        $crate::try_some!(@coalesce_mut ($($h)*.as_deref_mut()?) $($t)*)
     };
     (@coalesce_mut ($($h:tt)*) $m:tt $($t:tt)*) => {
         $crate::try_some!(@coalesce_mut ($($h)* $m) $($t)*)

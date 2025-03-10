@@ -6,6 +6,7 @@ use std::sync::Arc;
 use eyre::Result;
 use futures::{Stream, StreamExt, TryStreamExt};
 use k8s_openapi::api::core::v1::{PodSpec, PodStatus};
+use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use k8s_openapi::api::{
     core::v1::{Pod, Service},
     networking::v1::Ingress,
@@ -34,6 +35,7 @@ pub struct StoresInner {
     pods: Store<Pod>,
     services: Store<Service>,
     ingresses: Store<Ingress>,
+    pdbs: Store<PodDisruptionBudget>,
     tgbs: Store<TargetGroupBinding>,
 }
 
@@ -42,6 +44,7 @@ impl Stores {
         pods: Store<Pod>,
         services: Store<Service>,
         ingresses: Store<Ingress>,
+        pdbs: Store<PodDisruptionBudget>,
         tgbs: Store<TargetGroupBinding>,
     ) -> Self {
         Self {
@@ -49,6 +52,7 @@ impl Stores {
                 pods,
                 services,
                 ingresses,
+                pdbs,
                 tgbs,
             }),
         }
@@ -119,6 +123,20 @@ pub fn start_reflectors(
         run_reflector(shutdown, ingress_writer, stream, signal)
     })?;
 
+    let (pdb_reader, pdb_writer) = store();
+    spawn_service(shutdown, "reflector:PodDisruptionBudget", {
+        let api: Api<PodDisruptionBudget> = api_proivder.all();
+        let stream = watcher(api, Default::default()).map_ok(|ev| {
+            ev.modify(|ingress| {
+                ingress.metadata.annotations = None;
+                ingress.metadata.labels = None;
+                ingress.metadata.managed_fields = None;
+            })
+        });
+        let signal = service_registry.register("reflector:PodDisruptionBudget");
+        run_reflector(shutdown, pdb_writer, stream, signal)
+    })?;
+
     let (tgb_reader, tgb_writer) = store();
     if !config.experimental_general_ingress {
         spawn_service(shutdown, "reflector:TargetGroupBinding", {
@@ -140,6 +158,7 @@ pub fn start_reflectors(
         pod_reader,
         service_reader,
         ingress_reader,
+        pdb_reader,
         tgb_reader,
     ))
 }
@@ -233,6 +252,10 @@ impl Stores {
 
     pub fn ingresses(&self) -> Vec<Arc<Ingress>> {
         self.inner.ingresses.state()
+    }
+
+    pub fn pod_disruption_budgets(&self) -> Vec<Arc<PodDisruptionBudget>> {
+        self.inner.pdbs.state()
     }
 
     pub fn target_group_bindings(&self) -> Vec<Arc<TargetGroupBinding>> {

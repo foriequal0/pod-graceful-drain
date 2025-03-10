@@ -1,14 +1,17 @@
 use std::time::Duration;
 
 use chrono::{SecondsFormat, Utc};
-use eyre::{Context, Result, eyre};
+use eyre::{Context, Report, Result, eyre};
 use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::api::policy::v1::Eviction;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse};
 
-use crate::patch::{make_patch_eviction_to_dry_run, patch_pod_isolate};
-use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
-use crate::pod_state::{is_pod_exposed, is_pod_ready};
+use crate::patch_for_delete::{make_patch_eviction_to_dry_run, patch_pod_isolate};
+use crate::pod_disruption_budget::{
+    UpdatePodDisruptionBudgetResult, decrease_pod_disruption_budget,
+};
+use crate::pod_draining_state::{PodDrainingState, get_pod_draining_state};
+use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
 use crate::try_some;
 use crate::utils::get_object_ref_from_name;
 use crate::webhooks::handle_common::InterceptResult;
@@ -60,21 +63,33 @@ pub async fn eviction_handler(
         return Ok(InterceptResult::Allow);
     };
 
-    if pod.metadata.deletion_timestamp.is_some() {
+    if is_pod_running(&pod) {
         debug_report_for(
             state,
             &pod,
             "AllowEviction",
-            "AlreadyDeleted",
-            "Pod already have 'deletionTimestamp' on it".to_string(),
+            "AlreadyTerminated",
+            "Pod is not running".to_string(),
         )
         .await;
         return Ok(InterceptResult::Allow);
     }
 
-    let draining = get_pod_draining_info(&pod);
+    let draining = get_pod_draining_state(&pod);
     match draining {
-        PodDrainingInfo::None => {
+        PodDrainingState::None => {
+            if !is_pod_exposed(&state.config, &state.stores, &pod) {
+                debug_report_for(
+                    state,
+                    &pod,
+                    "AllowEviction",
+                    "NotExposed",
+                    "Eviction is allowed because the pod is not exposed".to_string(),
+                )
+                .await;
+                return Ok(InterceptResult::Allow);
+            }
+
             if !is_pod_ready(&pod) {
                 debug_report_for(
                     state,
@@ -87,17 +102,7 @@ pub async fn eviction_handler(
                 return Ok(InterceptResult::Allow);
             }
 
-            if !is_pod_exposed(&state.config, &state.stores, &pod) {
-                debug_report_for(
-                    state,
-                    &pod,
-                    "AllowEviction",
-                    "NotExposed",
-                    "Eviction is allowed because the pod is not exposed".to_string(),
-                )
-                .await;
-                return Ok(InterceptResult::Allow);
-            }
+            decrease_pod_disruption_budget(&pod, &state.stores, &state.api_resolver).await?;
 
             let drain_until = Utc::now() + state.config.delete_after;
 
@@ -134,8 +139,10 @@ pub async fn eviction_handler(
                 ),
             )
             .await;
+
+            Ok(intercept_eviction(request, eviction)?)
         }
-        PodDrainingInfo::DrainUntil(drain_until) => {
+        PodDrainingState::DrainUntil(drain_until) => {
             if Utc::now() > drain_until {
                 debug_report_for(
                     state,
@@ -160,8 +167,10 @@ pub async fn eviction_handler(
                 ),
             )
             .await;
+
+            Ok(intercept_eviction(request, eviction)?)
         }
-        PodDrainingInfo::DrainDisabled => {
+        PodDrainingState::DrainDisabled => {
             debug_report_for(
                 state,
                 &pod,
@@ -170,13 +179,16 @@ pub async fn eviction_handler(
                 "Pod graceful drain is disabled".to_string(),
             )
             .await;
-            return Ok(InterceptResult::Allow);
+            Ok(InterceptResult::Allow)
         }
-        PodDrainingInfo::AnnotationParseError { message } => {
-            return Err(eyre!(message));
-        }
-    };
+        PodDrainingState::AnnotationParseError { message } => Err(eyre!(message)),
+    }
+}
 
+fn intercept_eviction(
+    request: &AdmissionRequest<Eviction>,
+    eviction: &Eviction,
+) -> Result<InterceptResult> {
     let eviction_patch = make_patch_eviction_to_dry_run(eviction).context("patch")?;
     let response = AdmissionResponse::from(request)
         .with_patch(eviction_patch)

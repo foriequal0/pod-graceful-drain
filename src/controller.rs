@@ -17,13 +17,13 @@ use thiserror::Error;
 use tracing::{Level, debug, error, info, span, trace};
 
 use crate::api_resolver::ApiResolver;
-use crate::consts::DRAINING_LABEL_KEY;
 use crate::error_codes::{
     is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
     is_410_expired_error_response, is_transient_error,
 };
+use crate::labels_and_annotations::DRAINING_LABEL_KEY;
 use crate::loadbalancing::LoadBalancingConfig;
-use crate::pod_draining_info::{PodDrainingInfo, get_pod_draining_info};
+use crate::pod_draining_state::{PodDrainingState, get_pod_draining_state};
 use crate::pod_evict_params::get_pod_evict_params;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
@@ -88,7 +88,7 @@ async fn reconcile(
             return Ok(Action::requeue(DEFAULT_RECONCILE_DURATION));
         }
 
-        if let PodDrainingInfo::DrainUntil(drain_until) = get_pod_draining_info(&pod) {
+        if let PodDrainingState::DrainUntil(drain_until) = get_pod_draining_state(&pod) {
             if context.loadbalancing.controls(&pod) {
                 let remaining = drain_until - Utc::now();
                 if let Ok(remaining) = remaining.to_std() {
