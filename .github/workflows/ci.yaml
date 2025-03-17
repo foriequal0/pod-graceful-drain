@@ -145,7 +145,7 @@ jobs:
             --set replicaCount=1 \
             --set deleteAfter=20s \
             --set experimentalGeneralIngress=true \
-            --set logLevel=info\\,pod_graceful_drain=trace \
+            --set logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info \
             --wait=true --timeout=1m
       - name: Smoke test
         run: rye test -- tests/test_smoke.py --capture=tee-sys

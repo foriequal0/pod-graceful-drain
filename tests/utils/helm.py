@@ -52,7 +52,7 @@ def helm_install(
         "--set",
         f"image.tag={tag}",
         "--set",
-        "logLevel=info\\,pod_graceful_drain=trace",
+        "logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info",
         *set_values_args,
         "--wait=true",
         "--timeout=1m",

@@ -37,4 +37,4 @@ deploy:
           # When they find features are broken, they don't fix it for compatibility reasons.
           # Instead, they cover them up with still-broken ad-hoc mechanisms in obscure, undocumented ways.
           # And they leak throughout their entire layers of abstractions like this.
-          logLevel: "info\\,pod_graceful_drain=trace"
+          logLevel: "info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info"
