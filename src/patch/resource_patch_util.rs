@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
+use std::time::Duration;
 
-use backoff::ExponentialBackoff;
-use backoff::backoff::Backoff;
+use backon::{BackoffBuilder, ExponentialBackoff, ExponentialBuilder};
 use eyre::{Context, Result};
 use json_patch::{Patch, PatchOperation, TestOperation};
 use jsonptr::PointerBuf;
@@ -74,7 +74,12 @@ where
         let api = api_resolver.api_for(res);
         let name = res.meta().name.clone().expect("pod should have name");
 
-        let backoff = ExponentialBackoff::default();
+        let backoff = ExponentialBuilder::new()
+            .with_jitter()
+            .with_min_delay(Duration::from_millis(100))
+            .with_max_times(5)
+            .build();
+
         Self {
             api,
             name,
@@ -161,7 +166,7 @@ where
                     return Ok(());
                 }
                 Err(err) if is_transient_error(&err) => {
-                    if let Some(backoff) = self.backoff.next_backoff() {
+                    if let Some(backoff) = self.backoff.next() {
                         tokio::time::sleep(backoff).await;
                         continue 'refresh;
                     } else {
