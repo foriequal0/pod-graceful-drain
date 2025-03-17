@@ -20,7 +20,9 @@ from utils.kind import KindContext
 
 def test_can_delete_pod_without_delay_if_no_ingress(tmp_path: Path):
     kind_ctx = KindContext(tmp_path, cluster_name="test-pgd")
-    with KubectlContext(kind_ctx.get_kubeconfig(), namespace=None) as kubectl_ctx:
+    with KubectlContext(
+        kind_ctx.get_kubeconfig(), namespace=None, create_namespace=True
+    ) as kubectl_ctx:
         kubectl(
             kubectl_ctx,
             "run",
@@ -46,7 +48,9 @@ def test_can_delete_pod_without_delay_if_no_ingress(tmp_path: Path):
 
 def test_delete_is_delayed_with_ingress(tmp_path: Path):
     kind_ctx = KindContext(tmp_path, cluster_name="test-pgd")
-    with KubectlContext(kind_ctx.get_kubeconfig(), namespace=None) as kubectl_ctx:
+    with KubectlContext(
+        kind_ctx.get_kubeconfig(), namespace=None, create_namespace=True
+    ) as kubectl_ctx:
         kubectl_stdin(
             kubectl_ctx,
             "apply",

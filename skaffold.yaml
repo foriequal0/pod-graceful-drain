@@ -17,11 +17,16 @@ deploy:
   helm:
     releases:
       - name: pod-graceful-drain
+        namespace: pod-graceful-drain
+        createNamespace: true
         chartPath: charts/pod-graceful-drain
         valuesFiles:
           - charts/pod-graceful-drain/values.yaml
-        setValues:
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_localhost_pod_graceful_drain}}"
+          image.tag: "{{.IMAGE_TAG_localhost_pod_graceful_drain}}@{{.IMAGE_DIGEST_localhost_pod_graceful_drain}}"
           experimentalGeneralIngress: true
+          deleteAfter: 20s
           # Skaffold sends this parameter to Helm as a command line parameter
           # '--set=logLevel=info,pod_graceful_drain=trace'. If we omit the backslash,
           # Helm interprets a comma in the parameter as a delimiter for key=value pair,

@@ -7,10 +7,23 @@ from .subprocess_util import handle_error, print_command, to_bytes
 
 
 class KubectlContext:
-    def __init__(self, kubeconfig: str, /, namespace: str | None):
+    def __init__(
+        self,
+        kubeconfig: str,
+        /,
+        namespace: str | None,
+        create_namespace: bool = False,
+    ):
         self.kubeconfig = kubeconfig
-        self.namespace = namespace if namespace else "default"
-        self.create_namespace = True if namespace else False
+        if namespace:
+            self.namespace = namespace
+            self.create_namespace = True
+        if create_namespace:
+            self.namespace = _random_name()
+            self.create_namespace = True
+        else:
+            self.namespace = "default"
+            self.create_namespace = False
 
     def __enter__(self):
         if self.create_namespace:
@@ -25,7 +38,13 @@ class KubectlContext:
         if exc_type is not None:
             # dump logs
             kubectl(
-                self, "logs", "deployment/pod-graceful-drain", "--all-pods", "--prefix"
+                self,
+                "--namespace",
+                "pod-graceful-drain",
+                "logs",
+                "deployment/pod-graceful-drain",
+                "--all-pods",
+                "--prefix",
             )
 
             return
