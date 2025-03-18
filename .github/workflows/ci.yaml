@@ -148,30 +148,7 @@ jobs:
             --set logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info \
             --wait=true --timeout=1m
       - name: Smoke test
-        run: rye test -- tests/test_smoke.py --capture=tee-sys
-        timeout-minutes: 5
-      - name: Smoke test - Dump
-        if: always()
-        run: |
-          KUBECTL="kubectl --namespace pod-graceful-drain"
-          echo "::group::kubectl get"
-          ${KUBECTL} get --ignore-not-found=true --output wide all
-          echo "::endgroup::"
-
-          echo "::group::kubectl describe"
-          ${KUBECTL} describe all
-          echo "::endgroup::"
-
-          for POD in $(${KUBECTL} get pod -o=name); do
-          echo "::group::kubectl logs ${POD}"
-          ${KUBECTL} logs --ignore-errors=true "${POD}"
-          echo "::endgroup::"
-          done
-      - name: Smoke test - Cleanup
-        run: |
-          kind delete cluster --name test-pgd
-      - name: Drain test
-        run: rye test -- tests/test_drain.py --capture=tee-sys
+        run: rye test -- --capture=tee-sys -n auto
         timeout-minutes: 10
 
   smoke-tests-result:

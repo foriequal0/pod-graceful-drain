@@ -20,6 +20,8 @@ click==8.1.8
 colorama==0.4.6
     # via click
     # via pytest
+execnet==2.1.1
+    # via pytest-xdist
 iniconfig==2.0.0
     # via pytest
 jmespath==1.0.1
@@ -37,6 +39,8 @@ platformdirs==4.3.6
 pluggy==1.5.0
     # via pytest
 pytest==8.3.1
+    # via pytest-xdist
+pytest-xdist==3.6.1
 python-dateutil==2.9.0.post0
     # via botocore
 s3transfer==0.11.2
