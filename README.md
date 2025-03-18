@@ -73,11 +73,3 @@ Integration test uses [`kubectl`](https://kubernetes.io/docs/reference/kubectl/)
 cargo test
 rye test
 ```
-
-### Windows
-
-If you're using Windows, you might find it is much easier to compile dependencies with `msvc` toolchain.
-
-```shell
-rustup override set stable-x86_64-pc-windows-msvc
-```
