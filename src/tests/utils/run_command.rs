@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader, Write, stderr, stdout};
 use std::process::{Command, Output, Stdio};
 
 use eyre::{Context, Result, eyre};
+use thiserror::Error;
 use tokio::task::spawn_blocking;
 use tracing::{Level, enabled, error, info, span, trace};
 
@@ -66,7 +67,7 @@ pub async fn run_command(params: &CommandParams<'_>) -> Result<()> {
 
     let mut child = spawn_blocking(move || command.spawn()).await??;
 
-    let span = span!(target: "test", Level::ERROR, "command", pid=child.id());
+    let span = span!(target: "test", Level::INFO, "command", pid=child.id());
 
     info!(target: "test", parent: &span, "{}", params);
 
@@ -124,8 +125,16 @@ pub async fn run_command(params: &CommandParams<'_>) -> Result<()> {
     Ok(())
 }
 
-pub async fn get_command_output(params: &CommandParams<'_>) -> Result<Vec<u8>> {
-    let span = span!(target: "test", Level::ERROR, "command", %params);
+#[derive(Debug, Error)]
+pub enum CommandError {
+    #[error("command failed: {0}")]
+    SpawnFailed(#[from] eyre::Error),
+    #[error("command failed: {0}")]
+    CommandFailed(std::process::ExitStatus),
+}
+
+pub async fn get_command_output(params: &CommandParams<'_>) -> Result<Vec<u8>, CommandError> {
+    let span = span!(target: "test", Level::INFO, "command", %params);
     assert!(!span.is_disabled(), "logger should be set");
 
     info!(target: "test", parent: &span, "start");
@@ -160,7 +169,7 @@ pub async fn get_command_output(params: &CommandParams<'_>) -> Result<Vec<u8>> {
     if !output.status.success() {
         stdout().write_all(&output.stdout).unwrap();
         stderr().write_all(&output.stderr).unwrap();
-        return Err(eyre!("Command({params}) ({:?}):", output.status));
+        return Err(CommandError::CommandFailed(output.status));
     }
 
     Ok(output.stdout)

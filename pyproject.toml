@@ -16,7 +16,8 @@ dev-dependencies = [
     "black>=25.1.0",
     "boto3>=1.36.13",
     "click>=8.1.8",
+    "pytest-xdist>=3.6.1",
 ]
 
 [tool.rye.scripts]
-test-manual-eks = "python tests-integ/test-manual-eks.py"
+test-manual-eks = "python tests/test-manual-eks.py"

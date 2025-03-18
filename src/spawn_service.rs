@@ -4,9 +4,10 @@ use std::time::Duration;
 use eyre::{Context, Result};
 use tokio::task::{JoinError, JoinHandle};
 use tokio::{select, spawn};
-use tracing::{Instrument, Level, debug, error, span, warn};
+use tracing::{Instrument, Span, debug, error, warn};
 
 use crate::shutdown::Shutdown;
+use crate::try_some;
 
 #[derive(Debug)]
 pub enum ServiceExit {
@@ -17,16 +18,16 @@ pub enum ServiceExit {
 
 pub fn spawn_service(
     shutdown: &Shutdown,
-    name: impl Into<String>,
+    span: Span,
     future: impl Future<Output = ()> + Send + 'static,
 ) -> Result<JoinHandle<ServiceExit>> {
     let shutdown = shutdown.clone();
-    let service_name = name.into();
 
     let wrapped = {
         let shutdown = shutdown.clone();
+        let span = span.clone();
         async move {
-            match spawn(future).await {
+            match spawn(future.instrument(span)).await {
                 Ok(_) if shutdown.is_shutdown_triggered() => ServiceExit::GracefulShutdown,
                 Ok(_) => {
                     shutdown.trigger_shutdown();
@@ -42,6 +43,7 @@ pub fn spawn_service(
 
     let logged = {
         let shutdown = shutdown.clone();
+        let span = span.clone();
         async move {
             let mut wrapped = Box::pin(wrapped);
             let shutdown_log = async move {
@@ -49,45 +51,45 @@ pub fn spawn_service(
                 tokio::time::sleep(Duration::from_secs(3)).await;
             };
 
-            debug!("Service starting");
+            debug!(parent: &span, "Service starting");
             select! {
                 exit = &mut wrapped => {
                     match &exit {
                         ServiceExit::GracefulShutdown => {
-                            debug!("Service gracefully shutdown")
+                            debug!(parent: &span, "Service gracefully shutdown")
                         }
-                        ServiceExit::EarlyStop => error!("Service stopped early"),
-                        ServiceExit::Panic(err) => error!(%err, "Service panicked"),
+                        ServiceExit::EarlyStop => error!(parent: &span, "Service stopped early"),
+                        ServiceExit::Panic(err) => error!(parent: &span, %err, "Service panicked"),
                     }
                     exit
                 },
                 _ = shutdown_log => {
-                    warn!("Service shutdown is taking some time");
+                    warn!(parent: &span, "Service shutdown is taking some time");
                     wrapped.await
                 },
             }
         }
     };
 
-    let instrumented = logged.instrument(span!(Level::ERROR, "service", "{}", service_name));
-
     let waited = shutdown
-        .wrap_delay_shutdown(instrumented)
-        .context(service_name)?;
+        .wrap_delay_shutdown(logged)
+        .with_context(|| format!("service '{0:?}'", try_some!(span.metadata()?.name())))?;
 
     Ok(spawn(waited))
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use std::time::Duration;
 
-    use super::*;
+    use tracing::{Level, span};
 
     #[tokio::test]
     async fn graceful_shutdown_on_shutdown_request() {
         let shutdown = Shutdown::new();
-        let handle = spawn_service(&shutdown, "test", {
+        let handle = spawn_service(&shutdown, span!(Level::INFO, "test"), {
             let shutdown = shutdown.clone();
             async move {
                 shutdown.wait_shutdown_triggered().await;
@@ -104,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn should_capture_early_shutdown() {
         let shutdown = Shutdown::new();
-        let handle = spawn_service(&shutdown, "test", async move {
+        let handle = spawn_service(&shutdown, span!(Level::INFO, "test"), async move {
             tokio::time::sleep(Duration::from_micros(500)).await;
         })
         .unwrap();
@@ -115,7 +117,7 @@ mod tests {
     #[tokio::test]
     async fn should_capture_panic() {
         let shutdown = Shutdown::new();
-        let handle = spawn_service(&shutdown, "test", async move {
+        let handle = spawn_service(&shutdown, span!(Level::INFO, "test"), async move {
             tokio::time::sleep(Duration::from_micros(500)).await;
             panic!();
         })
@@ -127,12 +129,12 @@ mod tests {
     #[tokio::test]
     async fn should_early_shutdown_trigger_others_graceful_shutdown() {
         let shutdown = Shutdown::new();
-        let handle = spawn_service(&shutdown, "test", async move {
+        let handle = spawn_service(&shutdown, span!(Level::INFO, "test"), async move {
             tokio::time::sleep(Duration::from_micros(500)).await;
         })
         .unwrap();
 
-        let other_handle = spawn_service(&shutdown, "other", {
+        let other_handle = spawn_service(&shutdown, span!(Level::INFO, "test"), {
             let shutdown = shutdown.clone();
             async move {
                 shutdown.wait_shutdown_triggered().await;
@@ -149,13 +151,13 @@ mod tests {
     #[tokio::test]
     async fn should_panic_trigger_others_graceful_shutdown() {
         let shutdown = Shutdown::new();
-        let handle = spawn_service(&shutdown, "test", async move {
+        let handle = spawn_service(&shutdown, span!(Level::INFO, "test"), async move {
             tokio::time::sleep(Duration::from_micros(500)).await;
             panic!();
         })
         .unwrap();
 
-        let other_handle = spawn_service(&shutdown, "other", {
+        let other_handle = spawn_service(&shutdown, span!(Level::INFO, "test"), {
             let shutdown = shutdown.clone();
             async move {
                 shutdown.wait_shutdown_triggered().await;

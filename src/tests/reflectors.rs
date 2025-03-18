@@ -1,5 +1,3 @@
-mod testutils;
-
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -8,9 +6,10 @@ use k8s_openapi::api::networking::v1::Ingress;
 use kube::ResourceExt;
 use kube::runtime::reflector::ObjectRef;
 
-use pod_graceful_drain::{Config, Stores, start_reflectors, try_some};
-
-use crate::testutils::context::{TestContext, within_test_namespace};
+use crate::tests::utils::context::{TestContext, within_test_namespace};
+use crate::{
+    Config, Stores, apply_yaml, eventually, eventually_some, kubectl, start_reflectors, try_some,
+};
 
 fn start_test_reflector(context: &TestContext) -> Stores {
     let config = Config {

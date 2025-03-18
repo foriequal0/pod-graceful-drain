@@ -1,30 +1,30 @@
-mod testutils;
-
 use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use base64::Engine;
 use eyre::{ContextCompat, Result};
-use k8s_openapi::api::admissionregistration::v1::{
-    MutatingWebhookConfiguration, ValidatingWebhookConfiguration,
-};
+use k8s_openapi::api::admissionregistration::v1::ValidatingWebhookConfiguration;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::Api;
-use kube::api::{EvictParams, ListParams, ObjectList};
+use kube::api::{ListParams, ObjectList};
+use kube::runtime::events::{Recorder, Reporter};
 use rcgen::generate_simple_self_signed;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
-use pod_graceful_drain::{
-    Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
+use crate::labels_and_annotations::DrainingLabelValue;
+use crate::tests::utils::context::{TestContext, within_test_cluster, within_test_namespace};
+use crate::tests::utils::event_tracker::EventTracker;
+use crate::tests::utils::operations::install_test_host_service;
+use crate::tests::utils::pod_state::{
+    is_pod_patched, pod_is_alive, pod_is_alive_for, pod_is_deleted_within,
 };
-
-use crate::testutils::context::{TestContext, within_test_namespace};
-use crate::testutils::event_tracker::EventTracker;
-use crate::testutils::operations::install_test_host_service;
+use crate::{
+    CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
+    apply_yaml, kubectl, start_reflectors, start_webhook,
+};
 
 async fn generate_self_signed_cert(
     subject: String,
@@ -49,16 +49,15 @@ async fn setup(context: &TestContext, config: Config) {
     let service_registry = ServiceRegistry::default();
     let downward_api = DownwardAPI::default();
     let loadbalancing = LoadBalancingConfig::with_str("test");
+    let recorder = Recorder::new(
+        context.api_resolver.client.clone(),
+        Reporter {
+            controller: String::from(CONTROLLER_NAME),
+            instance: None,
+        },
+    );
 
-    pod_graceful_drain::start_controller(
-        &context.api_resolver,
-        &service_registry,
-        &loadbalancing,
-        &context.shutdown,
-    )
-    .unwrap();
-
-    let stores = pod_graceful_drain::start_reflectors(
+    let stores = start_reflectors(
         &context.api_resolver,
         &config,
         &service_registry,
@@ -66,7 +65,7 @@ async fn setup(context: &TestContext, config: Config) {
     )
     .unwrap();
 
-    let port = pod_graceful_drain::start_webhook(
+    let port = start_webhook(
         &context.api_resolver,
         config,
         WebhookConfig::random_port_for_test(cert, key_pair),
@@ -74,6 +73,7 @@ async fn setup(context: &TestContext, config: Config) {
         &service_registry,
         &loadbalancing,
         &downward_api,
+        &recorder,
         &context.shutdown,
     )
     .await
@@ -108,69 +108,6 @@ webhooks:
       matchLabels:
         name: {namespace}"#,
     );
-
-    apply_yaml!(
-        context,
-        MutatingWebhookConfiguration,
-        r#"
-metadata:
-  name: {namespace}-webhook
-webhooks:
-  - name: mutate.pod-graceful-drain.io
-    admissionReviewVersions: [v1beta1, v1]
-    clientConfig:
-      caBundle: {ca_bundle}
-      service:
-        namespace: {namespace}
-        name: test-host
-        path: /webhook/mutate
-        port: {port}
-    rules:
-      - apiGroups: [""]
-        apiVersions: [v1]
-        operations: [CREATE]
-        resources: [pods/eviction]
-    failurePolicy: Fail
-    sideEffects: NoneOnDryRun
-    namespaceSelector:
-      matchLabels:
-        name: {namespace}"#,
-    );
-}
-
-async fn pod_is_alive(context: &TestContext, name: &str) -> bool {
-    let pod = context.api_resolver.all::<Pod>().get_metadata(name).await;
-    match pod {
-        Ok(pod) => pod.metadata.deletion_timestamp.is_none(),
-        Err(kube::Error::Api(err)) if err.code == 404 || err.code == 409 => false,
-        Err(err) => panic!("error: {err:?}"),
-    }
-}
-
-async fn pod_is_alive_for(context: &TestContext, name: &str, timeout: Duration) -> bool {
-    let start = Instant::now();
-    while Instant::now() - start < timeout {
-        if !pod_is_alive(context, name).await {
-            return false;
-        }
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-
-    true
-}
-
-async fn pod_is_deleted_within(context: &TestContext, name: &str, timeout: Duration) -> bool {
-    let start = Instant::now();
-    while Instant::now() - start < timeout {
-        if !pod_is_alive(context, name).await {
-            return true;
-        }
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-
-    false
 }
 
 const DELETE_AFTER_SECS: u64 = 10;
@@ -264,18 +201,11 @@ spec:
 
         assert!(event_tracker.issued_soon("DelayDeletion", "Drain").await);
 
-        assert_eq!(
-            Some(true),
-            {
-                let pod: Pod = context.api_resolver.all().get("some-pod").await.unwrap();
-                let labels = pod.metadata.labels.as_ref();
-                let annotations = pod.metadata.annotations.as_ref();
-                labels
-                    .map(|l| l.contains_key("pod-graceful-drain/draining"))
-                    .and(annotations.map(|a| a.contains_key("pod-graceful-drain/drain-until")))
-            },
+        assert!(
+            is_pod_patched(&context, "some-pod", DrainingLabelValue::Draining).await,
             "pod should've been patched"
         );
+
         assert!(
             {
                 let es_list: ObjectList<EndpointSlice> = context
@@ -310,125 +240,6 @@ spec:
 
         first.await.unwrap();
         second.await.unwrap();
-
-        assert!(
-            pod_is_deleted_within(&context, "some-pod", Duration::from_secs(20)).await,
-            "pod is eventually deleted"
-        );
-    })
-    .await;
-}
-
-#[tokio::test]
-async fn should_delay_deletion_by_evict() {
-    within_test_namespace(|context| async move {
-        let config = Config {
-            delete_after: DELETE_AFTER,
-            experimental_general_ingress: true,
-        };
-        setup(&context, config).await;
-
-        apply_yaml!(
-            &context,
-            Pod,
-            r#"
-metadata:
-  name: some-pod
-  labels:
-    app: test
-spec:
-  containers:
-  - name: app
-    image: public.ecr.aws/docker/library/busybox
-    command: ["sleep", "9999"]"#
-        );
-
-        apply_yaml!(
-            &context,
-            Service,
-            r#"
-metadata:
-  name: some-service
-spec:
-  ports:
-  - name: http
-    port: 80
-  selector:
-    app: test"#
-        );
-
-        apply_yaml!(
-            &context,
-            Ingress,
-            r#"
-metadata:
-  name: some-ingress
-spec:
-  rules:
-  - http:
-      paths:
-      - backend:
-          service:
-            name: some-service
-            port:
-              name: http
-        pathType: Exact
-        path: /"#
-        );
-
-        kubectl!(
-            &context,
-            [
-                "wait",
-                "pod/some-pod",
-                "--for=condition=Ready",
-                "--timeout=1m"
-            ]
-        );
-
-        let context = Arc::new(context);
-        let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
-
-        {
-            let api: Api<Pod> = context.api_resolver.all();
-            _ = api.evict("some-pod", &EvictParams::default()).await;
-        }
-
-        assert!(
-            event_tracker
-                .issued_soon("InterceptEviction", "Drain")
-                .await
-        );
-
-        assert_eq!(
-            Some(true),
-            {
-                let pod: Pod = context.api_resolver.all().get("some-pod").await.unwrap();
-                let labels = pod.metadata.labels.as_ref();
-                let annotations = pod.metadata.annotations.as_ref();
-                labels
-                    .map(|l| l.contains_key("pod-graceful-drain/draining"))
-                    .and(annotations.map(|a| a.contains_key("pod-graceful-drain/drain-until")))
-            },
-            "pod should've been patched"
-        );
-        assert!(
-            {
-                let es_list: ObjectList<EndpointSlice> = context
-                    .api_resolver
-                    .all()
-                    .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
-                    .await
-                    .unwrap();
-                es_list.items.iter().all(|es| es.endpoints.is_empty())
-            },
-            "pod should've been removed from the endpointslices"
-        );
-
-        assert!(
-            pod_is_alive_for(&context, "some-pod", DELETE_DELAY_APPROX).await,
-            "pod is alive for approx. 10s"
-        );
 
         assert!(
             pod_is_deleted_within(&context, "some-pod", Duration::from_secs(20)).await,
@@ -497,6 +308,16 @@ spec:
               name: http
         pathType: Exact
         path: /"#
+        );
+
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=jsonpath={.status.phase}=Running'",
+                "--timeout=1m"
+            ]
         );
 
         let mut event_tracker = EventTracker::new(&context, Duration::from_secs(1)).await;
@@ -691,6 +512,154 @@ spec:
             pod_is_deleted_within(&context, &pod_name, Duration::from_secs(20)).await,
             "pod is eventually deleted"
         );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn should_delay_deletion_by_kubectl_drain_disable_eviction() {
+    within_test_cluster(|context| async move {
+        let config = Config {
+            delete_after: Duration::from_secs(30),
+            experimental_general_ingress: true,
+        };
+        setup(&context, config).await;
+
+        apply_yaml!(
+            &context,
+            Pod,
+            r#"
+metadata:
+  name: some-pod
+  labels:
+    app: test
+spec:
+  nodeName: {}-worker
+  containers:
+  - name: app
+    image: public.ecr.aws/docker/library/busybox
+    command: ["sleep", "9999"]"#,
+            &context.cluster_name
+        );
+
+        apply_yaml!(
+            &context,
+            Service,
+            r#"
+metadata:
+  name: some-service
+spec:
+  ports:
+  - name: http
+    port: 80
+  selector:
+    app: test"#
+        );
+
+        apply_yaml!(
+            &context,
+            Ingress,
+            r#"
+metadata:
+  name: some-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: some-service
+            port:
+              name: http
+        pathType: Exact
+        path: /"#
+        );
+
+        kubectl!(
+            &context,
+            [
+                "wait",
+                "pod/some-pod",
+                "--for=condition=Ready",
+                "--timeout=1m"
+            ]
+        );
+
+        let mut event_tracker = EventTracker::new(&context, Duration::from_secs(5)).await;
+        let context = Arc::new(context);
+
+        let first = tokio::spawn({
+            let context = Arc::clone(&context);
+            async move {
+                let start = Instant::now();
+                kubectl!(
+                    &context,
+                    [
+                        "drain",
+                        "--force",
+                        "--ignore-daemonsets",
+                        "--disable-eviction=true",
+                        &format!("{}-worker", &context.cluster_name)
+                    ]
+                );
+                let duration = Instant::now() - start;
+                assert!(
+                    duration > Duration::from_secs(30 - 5),
+                    "should be delayed approx 30s again"
+                );
+            }
+        });
+        assert!(event_tracker.issued_soon("DelayDeletion", "Drain").await);
+
+        assert!(
+            is_pod_patched(&context, "some-pod", DrainingLabelValue::Draining).await,
+            "pod should've been patched"
+        );
+        assert!(
+            {
+                let es_list: ObjectList<EndpointSlice> = context
+                    .api_resolver
+                    .all()
+                    .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
+                    .await
+                    .unwrap();
+                es_list.items.iter().all(|es| es.endpoints.is_empty())
+            },
+            "pod should've been removed from the endpointslices"
+        );
+
+        let second = tokio::spawn({
+            let context = Arc::clone(&context);
+            async move {
+                let start = Instant::now();
+                kubectl!(
+                    &context,
+                    [
+                        "drain",
+                        "--force",
+                        "--ignore-daemonsets",
+                        "--disable-eviction=true",
+                        &format!("{}-worker", &context.cluster_name)
+                    ]
+                );
+                let duration = Instant::now() - start;
+                assert!(
+                    duration > Duration::from_secs(10 - 2),
+                    "should wait approx 10s"
+                );
+            }
+        });
+        assert!(event_tracker.issued_soon("DelayDeletion", "Draining").await);
+
+        assert!(
+            pod_is_alive_for(&context, "some-pod", Duration::from_secs(10 - 2)).await,
+            "pod is alive for approx 10s"
+        );
+
+        first.await.unwrap();
+        second.await.unwrap();
+
+        assert!(!pod_is_alive(&context, "some-pod").await);
     })
     .await;
 }

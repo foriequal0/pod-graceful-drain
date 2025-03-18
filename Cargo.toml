@@ -2,22 +2,22 @@
 name = "pod-graceful-drain"
 description = "You don't need `lifecycle: { preStop: { exec: { command: [\"sleep\", \"30\"] } } }`"
 authors = ["SeongChan Lee <foriequal@gmail.com>"]
-version = "0.1.0-rc.8"
+version = "0.1.0-rc.9"
 edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
 # kubernetes libs
-kube = { version = "0.98.0", features = ["runtime", "admission"] }
+kube = { version = "0.99.0", features = ["runtime", "admission"] }
 k8s-openapi = { version = "0.24.0", features = ["v1_32"] }
 
 # async runtime libs
-tokio = "1.43.0"
+tokio = "1.44.1"
 futures = "0.3.31"
 
 # webhook libs
-axum = "0.8.1"
-axum-server = { version = "0.7.1", features = ["tls-rustls-no-provider"] }
+axum = { version = "0.8.1", features = ["macros"] }
+axum-server = { version = "0.7.2", features = ["tls-rustls-no-provider"] }
 rustls = { version = "0.23.23", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
 
@@ -27,24 +27,24 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-error = "0.2.1"
 eyre = "0.6.12"
 color-eyre = { version = "0.6.3", features = ["capture-spantrace"] }
-thiserror = "2.0.11"
+thiserror = "2.0.12"
 
 # auxilary libs
-clap = { version = "4.5.31", features = ["derive"] }
+clap = { version = "4.5.32", features = ["derive"] }
 genawaiter = { git = "https://github.com/foriequal0/genawaiter", features = ["futures03"] }
-humantime = "2.1.0"
+humantime = "2.2.0"
 async-shutdown = "0.2.2"
-serde = "1.0.218"
-serde_json = "1.0.139"
-json-patch = "3.0.1"
-jsonptr = "0.6.3"
+serde = "1.0.219"
+serde_json = "1.0.140"
+json-patch = "4.0.0"
+jsonptr = "0.7.1"
 chrono = "0.4.39"
-backoff = "0.4.0"
+backon = { version = "1.4.0", default-features = false }
 rand = "0.9.0"
 uuid = { version = "1.15.1", features = ["v4"] }
 
 [dev-dependencies]
-tempfile = "3.17.1"
+tempfile = "3.19.0"
 serde_yaml = "0.9.34-deprecated"
 local-ip-address = "0.6.3"
 base64 = "0.22.1"
@@ -52,5 +52,5 @@ rcgen = "0.13.2"
 assert_matches = "1.5.0"
 
 [build-dependencies]
-anyhow = "1.0.96"
+anyhow = "1.0.97"
 vergen-gitcl = { version = "1.0.5", features = ["build", "rustc"] }

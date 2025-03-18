@@ -32,6 +32,7 @@ pub fn is_409_conflict_error(err: &Error) -> bool {
     )
 }
 
+/// usually due to a resourceVersion that is too old for LIST or WATCH operations
 pub fn is_410_expired_error(err: &Error) -> bool {
     matches!(err, Error::Api(err) if is_410_expired_error_response(err))
 }
@@ -62,13 +63,18 @@ pub fn is_transient_error(err: &Error) -> bool {
         Error::Api(ErrorResponse {
             code:
                 STATUS_CODE_408_TIMEOUT
-                | STATUS_CODE_429_TOO_MANY_REQUESTS // related to PodDisruptionBudget
-                | STATUS_CODE_500_INTERNAL_SERVER_ERROR
+                | STATUS_CODE_429_TOO_MANY_REQUESTS
                 | STATUS_CODE_502_BAD_GATEWAY
                 | STATUS_CODE_503_SERVICE_UNAVAILABLE
-                | STATUS_CODE_504_GATEWAY_TIMEOUT..,
+                | STATUS_CODE_504_GATEWAY_TIMEOUT,
             ..
         }) => true,
+
+        Error::Api(ErrorResponse { code, reason, .. })
+            if *code == STATUS_CODE_500_INTERNAL_SERVER_ERROR && reason == "ServerTimeout" =>
+        {
+            true
+        }
 
         // TODO: Handle more transient err
         _ => false,

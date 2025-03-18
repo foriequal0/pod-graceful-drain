@@ -11,11 +11,11 @@ use kube::runtime::{WatchStreamExt, watcher};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tracing::{Level, debug, error, info, span};
 
+use crate::ApiResolver;
 use crate::error_codes::is_410_expired_error_response;
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
 use crate::webhooks::config::{CertConfig, SecretCertConfig};
-use crate::{ApiResolver, instrumented};
 
 const TLS_CRT: &str = "tls.crt";
 const TLS_KEY: &str = "tls.key";
@@ -55,13 +55,13 @@ async fn build(
 ) -> Result<RustlsConfig> {
     let (config_tx, config_rx) = tokio::sync::oneshot::channel();
 
-    spawn_service(shutdown, "certwatcher", {
+    spawn_service(shutdown, span!(Level::INFO, "certwatcher"), {
         let shutdown = shutdown.clone();
         let api: Api<Secret> = api_resolver.default_namespaced();
         let config = watcher::Config::default()
             .fields(&format!("metadata.name={}", cert_config.cert_secret_name));
 
-        instrumented!(span!(Level::ERROR, "certwatcher"), async move {
+        async move {
             let mut stream = Box::pin(
                 watcher(api, config)
                     .default_backoff()
@@ -151,7 +151,7 @@ async fn build(
                     }
                 }
             }
-        })
+        }
     })?;
 
     let config = tokio::time::timeout(Duration::from_secs(10), config_rx).await??;

@@ -4,6 +4,7 @@ use std::time::Duration;
 use clap::Parser;
 use color_eyre::config::Frame;
 use eyre::Result;
+use kube::runtime::events::{Recorder, Reporter};
 use tokio::select;
 use tracing::{Level, debug, error, info};
 use tracing_error::ErrorLayer;
@@ -13,8 +14,8 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, filter::Directive};
 
 use pod_graceful_drain::{
-    ApiResolver, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, Shutdown,
-    WebhookConfig, start_controller, start_reflectors, start_webhook,
+    ApiResolver, CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry,
+    Shutdown, WebhookConfig, start_controllers, start_reflectors, start_webhook,
 };
 
 #[tokio::main(flavor = "current_thread")]
@@ -36,7 +37,7 @@ async fn main() -> Result<ExitCode> {
 
     select! {
         _ = shutdown.wait_shutdown_complete() => {},
-        _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
+        _ = tokio::time::sleep(Duration::from_secs(1)) => {
             info!("Waiting for graceful shutdown");
             shutdown.wait_shutdown_complete().await;
         }
@@ -51,19 +52,35 @@ async fn try_main(config: Config, shutdown: &Shutdown) -> Result<()> {
     let api_resolver = ApiResolver::try_new(kube::Config::infer().await?)?;
     let service_registry = ServiceRegistry::default();
     let loadbalancing = LoadBalancingConfig::with_pod_uid(downward_api.pod_uid.clone());
+    let recorder = Recorder::new(
+        api_resolver.client.clone(),
+        Reporter {
+            controller: String::from(CONTROLLER_NAME),
+            instance: downward_api.pod_name.clone(),
+        },
+    );
 
     info!("Starting");
 
-    start_controller(&api_resolver, &service_registry, &loadbalancing, shutdown)?;
-    let reflectors = start_reflectors(&api_resolver, &config, &service_registry, shutdown)?;
+    let stores = start_reflectors(&api_resolver, &config, &service_registry, shutdown)?;
+    start_controllers(
+        &api_resolver,
+        &service_registry,
+        &loadbalancing,
+        &config,
+        &stores,
+        &recorder,
+        shutdown,
+    )?;
     start_webhook(
         &api_resolver,
         config,
         WebhookConfig::controller_runtime_default(downward_api.get_release_fullname()?),
-        reflectors,
+        stores,
         &service_registry,
         &loadbalancing,
         &downward_api,
+        &recorder,
         shutdown,
     )
     .await?;

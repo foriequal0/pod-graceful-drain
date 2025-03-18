@@ -23,7 +23,7 @@ def setup():
         eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
         eks_ctx.create_cluster()
 
-        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), "default")
+        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), namespace=None)
         helm(
             kubectl_ctx,
             "upgrade",
@@ -35,6 +35,7 @@ def setup():
             f"--set=clusterName={eks_ctx.cluster_name}",
             "--set=serviceAccount.create=false",
             "--set=serviceAccount.name=aws-load-balancer-controller",
+            "--set=podDisruptionBudget.minAvailable=1",
             "--wait=true",
         )
 
@@ -65,6 +66,16 @@ def setup():
             "-f",
             "-",
             stdin="""
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: some-pdb
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  minAvailable: 1
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
