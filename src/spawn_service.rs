@@ -80,11 +80,11 @@ pub fn spawn_service(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::time::Duration;
 
     use tracing::{Level, span};
+
+    use super::*;
 
     #[tokio::test]
     async fn graceful_shutdown_on_shutdown_request() {

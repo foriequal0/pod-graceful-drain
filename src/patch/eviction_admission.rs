@@ -21,12 +21,11 @@ pub fn make_patch_eviction_to_dry_run(eviction: &Eviction) -> Result<Patch> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use eyre::Result;
     use serde::Serialize;
     use serde_json::{Value, json};
 
+    use super::*;
     use crate::from_json;
 
     fn apply<K>(res: &K, patch: &Patch) -> Result<Value>

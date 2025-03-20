@@ -165,14 +165,13 @@ fn is_exposing_service(stores: &Stores, pod: &Pod, service_ref: ObjectRef<Servic
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::hash::Hash;
     use std::time::Duration;
 
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
+    use super::*;
     use crate::from_json;
 
     fn store_from<K>(iter: impl IntoIterator<Item = K>) -> Store<K>

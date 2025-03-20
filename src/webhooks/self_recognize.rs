@@ -41,9 +41,9 @@ pub fn is_my_serviceaccount(downward_api: &DownwardAPI, user_info: &UserInfo) ->
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use k8s_openapi::api::authentication::v1::UserInfo;
+
+    use super::*;
 
     #[test]
     pub fn test_is_my_serviceaccount_return_true() {

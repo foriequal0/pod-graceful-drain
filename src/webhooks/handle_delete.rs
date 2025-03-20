@@ -1,18 +1,18 @@
 use std::time::Duration;
 
-use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
-use crate::report::{debug_report_for, report_for};
-use crate::webhooks::AppState;
-use crate::webhooks::handle_common::InterceptResult;
+use chrono::{DateTime, Utc};
+use eyre::{Context, Result, eyre};
+use k8s_openapi::api::core::v1::Pod;
+use kube::core::admission::AdmissionRequest;
 
 use crate::labels_and_annotations::{
     DrainingLabelValue, get_pod_drain_timestamp, get_pod_draining_label_value,
 };
 use crate::patch::drain::{PatchToDrainCaller, PatchToDrainOutcome, patch_to_drain};
-use chrono::{DateTime, Utc};
-use eyre::{Context, Result, eyre};
-use k8s_openapi::api::core::v1::Pod;
-use kube::core::admission::AdmissionRequest;
+use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
+use crate::report::{debug_report_for, report_for};
+use crate::webhooks::AppState;
+use crate::webhooks::handle_common::InterceptResult;
 
 /// This handler delays the admission of DELETE Pod request.
 ///

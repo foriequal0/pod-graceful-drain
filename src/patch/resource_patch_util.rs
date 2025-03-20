@@ -17,8 +17,8 @@ use tracing::trace;
 
 use crate::api_resolver::ApiResolver;
 use crate::error_codes::{
-    is_404_not_found_error, is_409_conflict_error,
-    is_422_invalid_for_json_patch_test_error, is_transient_error,
+    is_404_not_found_error, is_409_conflict_error, is_422_invalid_for_json_patch_test_error,
+    is_transient_error,
 };
 use crate::error_types::Bug;
 

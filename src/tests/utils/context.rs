@@ -1,3 +1,10 @@
+use std::collections::{BTreeMap, HashSet};
+use std::future::Future;
+use std::io::Write;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
 use eyre::{Context, Result};
 use k8s_openapi::api::core::v1::Namespace;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -5,12 +12,6 @@ use kube::api::{ApiResource, DeleteParams, DynamicObject};
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Api, Client, Config};
 use rand::Rng;
-use std::collections::{BTreeMap, HashSet};
-use std::future::Future;
-use std::io::Write;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;

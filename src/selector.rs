@@ -113,10 +113,9 @@ pub fn matches_expressions(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use k8s_openapi::api::core::v1::Pod;
 
+    use super::*;
     use crate::from_json;
 
     macro_rules! requirement {

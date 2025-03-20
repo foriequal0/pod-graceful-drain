@@ -360,13 +360,12 @@ fn set_status_condition(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::hash::Hash;
 
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
+    use super::*;
     use crate::from_json;
 
     fn store_from<K>(iter: impl IntoIterator<Item = K>) -> Store<K>

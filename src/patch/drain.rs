@@ -103,12 +103,12 @@ fn remove_owner_reference(pod: &mut Pod) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::from_json;
-    use crate::patch::evict;
     use chrono::DateTime;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
+
+    use super::*;
+    use crate::from_json;
+    use crate::patch::evict;
 
     #[test]
     fn test_mutate_should_return_gone_if_pod_is_none() {

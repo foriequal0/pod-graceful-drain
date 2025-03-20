@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use crate::LoadBalancingConfig;
-use crate::error_types::Bug;
 use chrono::{DateTime, SecondsFormat, Utc};
 use eyre::Result;
 use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::ResourceExt;
+
+use crate::LoadBalancingConfig;
+use crate::error_types::Bug;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DrainingLabelValue {
@@ -222,10 +223,9 @@ pub fn set_pod_delete_options(pod: &mut Pod, config: Option<&DeleteOptions>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
 
+    use super::*;
     use crate::from_json;
 
     #[test]

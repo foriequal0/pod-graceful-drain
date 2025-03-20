@@ -1,7 +1,9 @@
+use std::time::{Duration, Instant};
+
+use k8s_openapi::api::core::v1::Pod;
+
 use crate::labels_and_annotations::{DrainingLabelValue, get_pod_draining_label_value};
 use crate::tests::utils::context::TestContext;
-use k8s_openapi::api::core::v1::Pod;
-use std::time::{Duration, Instant};
 
 pub async fn is_pod_patched(context: &TestContext, name: &str, target: DrainingLabelValue) -> bool {
     let result = context.api_resolver.all::<Pod>().get(name).await;
