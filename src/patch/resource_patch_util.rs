@@ -18,7 +18,7 @@ use tracing::trace;
 use crate::api_resolver::ApiResolver;
 use crate::error_codes::{
     is_404_not_found_error, is_409_conflict_error,
-    is_generic_server_response_422_invalid_for_json_patch_error, is_transient_error,
+    is_422_invalid_for_json_patch_test_error, is_transient_error,
 };
 use crate::error_types::Bug;
 
@@ -150,7 +150,7 @@ where
         if !(is_transient_error(&err)
             // kubernetes api server returns 422 when JsonPatch fails to test, not 409.
             // SEE: https://github.com/kubernetes/kubernetes/blob/2a1d4172e22abb6759b3d2ad21bb09a04eef596d/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/patch.go#L394
-            || is_generic_server_response_422_invalid_for_json_patch_error(&err)
+            || is_422_invalid_for_json_patch_test_error(&err)
             // Conflict is to reduce future confusion.
             || is_409_conflict_error(&err))
         {

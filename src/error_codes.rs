@@ -47,14 +47,16 @@ pub fn is_410_expired_error_response(err: &ErrorResponse) -> bool {
     )
 }
 
-pub fn is_generic_server_response_422_invalid_for_json_patch_error(err: &Error) -> bool {
+pub fn is_422_invalid_for_json_patch_test_error(err: &Error) -> bool {
     matches!(
         err,
         Error::Api(ErrorResponse {
-            code,
-            reason,
+            code: STATUS_CODE_422_UNPROCESSABLE_ENTITY,
+            message,
             ..
-        }) if *code == STATUS_CODE_422_UNPROCESSABLE_ENTITY && reason == "Invalid"
+        })
+        // if there's a bug in the patch, different messages are returned
+        if message == "the server rejected our request due to an error in our request"
     )
 }
 
@@ -70,11 +72,11 @@ pub fn is_transient_error(err: &Error) -> bool {
             ..
         }) => true,
 
-        Error::Api(ErrorResponse { code, reason, .. })
-            if *code == STATUS_CODE_500_INTERNAL_SERVER_ERROR && reason == "ServerTimeout" =>
-        {
-            true
-        }
+        Error::Api(ErrorResponse {
+            code: STATUS_CODE_500_INTERNAL_SERVER_ERROR,
+            reason,
+            ..
+        }) if reason == "ServerTimeout" => true,
 
         // TODO: Handle more transient err
         _ => false,
