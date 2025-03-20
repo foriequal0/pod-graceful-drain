@@ -53,7 +53,7 @@ pub async fn patch_to_drain(
 
 pub(super) fn mutate_to_drain(
     pod: Option<&Pod>,
-    drain_timestamp: DateTime<Utc>,
+    now: DateTime<Utc>,
     loadbalancing: &LoadBalancingConfig,
     preserve_delete_options: bool,
 ) -> Result<MutationOutcome<PatchToDrainOutcome, Pod>, Bug> {
@@ -63,8 +63,8 @@ pub(super) fn mutate_to_drain(
 
     let draining_state = get_pod_draining_label_value(pod);
     if let Ok(Some(DrainingLabelValue::Draining)) = draining_state {
-        let draining_timestamp = get_pod_drain_timestamp(pod);
-        if let Ok(Some(drain_timestamp)) = draining_timestamp {
+        let drain_timestamp = get_pod_drain_timestamp(pod);
+        if let Ok(Some(drain_timestamp)) = drain_timestamp {
             return Ok(MutationOutcome::DesiredState(
                 PatchToDrainOutcome::Draining { drain_timestamp },
             ));
@@ -76,7 +76,7 @@ pub(super) fn mutate_to_drain(
 
         try_backup_pod_original_labels(&mut pod)?;
         try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining);
-        try_set_pod_drain_timestamp(&mut pod, drain_timestamp);
+        try_set_pod_drain_timestamp(&mut pod, now);
         set_pod_evict_after(&mut pod, None);
         set_pod_drain_controller(&mut pod, loadbalancing);
         if !preserve_delete_options {

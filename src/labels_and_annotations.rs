@@ -34,7 +34,7 @@ pub fn try_set_pod_draining_label_value(pod: &mut Pod, value: DrainingLabelValue
     if let Ok(Some(existing)) = get_pod_draining_label_value(pod) {
         if existing == value {
             // do not set if same
-            return false;
+            return true;
         }
 
         if existing == DrainingLabelValue::Draining && value == DrainingLabelValue::Evicting {
@@ -326,7 +326,11 @@ mod tests {
             );
 
             assert!(
-                !try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
+                try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
+                "overwriting the same value should return true"
+            );
+            assert!(
+                try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
                 "should not regress progress"
             );
         }
