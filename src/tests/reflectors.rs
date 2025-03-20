@@ -282,7 +282,7 @@ spec:
 
         let ingress = eventually_some!({
             stores
-                .ingresses()
+                .ingresses(&context.namespace)
                 .into_iter()
                 .find(|ingress| ingress.name_any() == "some-ingress")
         });
@@ -327,14 +327,14 @@ spec:
 
         eventually_some!({
             stores
-                .ingresses()
+                .ingresses(&context.namespace)
                 .into_iter()
                 .find(|ingress| ingress.name_any() == "some-ingress")
         });
 
         kubectl!(&context, ["delete", "ingress", "some-ingress"]);
 
-        assert!(eventually!(stores.ingresses().is_empty()));
+        assert!(eventually!(stores.ingresses(&context.namespace).is_empty()));
     })
     .await;
 }
@@ -365,7 +365,7 @@ spec:
 
         let ingress = eventually_some!(
             stores
-                .ingresses()
+                .ingresses(&context.namespace)
                 .into_iter()
                 .find(|ingress| ingress.name_any() == "some-ingress")
         );
@@ -400,7 +400,7 @@ spec:
             eventually_some!({
                 let new_ingress = try_some!(
                     stores
-                        .ingresses()
+                        .ingresses(&context.namespace)
                         .into_iter()
                         .find(|ing| ing.name_any() == ingress.name_any())
                 )

@@ -83,7 +83,7 @@ where
     };
 
     let object_ref: ObjectRef<K> =
-        get_object_ref_from_name(&request.name, request.namespace.as_ref());
+        get_object_ref_from_name(&request.name, request.namespace.as_deref());
 
     instrumented!(
         span!(Level::INFO, "webhook", %object_ref, operation = ?request.operation, uid=request.uid),

@@ -264,15 +264,39 @@ impl Stores {
         self.inner.services.get(key)
     }
 
-    pub fn ingresses(&self) -> Vec<Arc<Ingress>> {
-        self.inner.ingresses.state()
+    pub fn services(&self, ns: &str) -> Vec<Arc<Service>> {
+        self.inner
+            .services
+            .state()
+            .into_iter()
+            .filter(|x| x.metadata.namespace.as_deref() == Some(ns))
+            .collect()
     }
 
-    pub fn pod_disruption_budgets(&self) -> Vec<Arc<PodDisruptionBudget>> {
-        self.inner.pdbs.state()
+    pub fn ingresses(&self, ns: &str) -> Vec<Arc<Ingress>> {
+        self.inner
+            .ingresses
+            .state()
+            .into_iter()
+            .filter(|x| x.metadata.namespace.as_deref() == Some(ns))
+            .collect()
     }
 
-    pub fn target_group_bindings(&self) -> Vec<Arc<TargetGroupBinding>> {
-        self.inner.tgbs.state()
+    pub fn pod_disruption_budgets(&self, ns: &str) -> Vec<Arc<PodDisruptionBudget>> {
+        self.inner
+            .pdbs
+            .state()
+            .into_iter()
+            .filter(|x| x.metadata.namespace.as_deref() == Some(ns))
+            .collect()
+    }
+
+    pub fn target_group_bindings(&self, ns: &str) -> Vec<Arc<TargetGroupBinding>> {
+        self.inner
+            .tgbs
+            .state()
+            .into_iter()
+            .filter(|x| x.metadata.namespace.as_deref() == Some(ns))
+            .collect()
     }
 }

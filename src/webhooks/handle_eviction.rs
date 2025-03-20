@@ -31,7 +31,7 @@ pub async fn handle_eviction(
         .as_ref()
         .ok_or(eyre!("object for mutation is missing"))?;
 
-    let object_ref = get_object_ref_from_name(&request.name, request.namespace.as_ref());
+    let object_ref = get_object_ref_from_name(&request.name, request.namespace.as_deref());
     if let Some(dry_run) = try_some!(eviction.delete_options?.dry_run?) {
         if !dry_run.is_empty() {
             debug_report_for_ref(
