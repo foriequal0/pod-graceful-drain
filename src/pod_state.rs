@@ -71,7 +71,7 @@ pub fn is_pod_exposed(config: &Config, stores: &Stores, pod: &Pod) -> bool {
     // TODO: Find better way to determine whether a pod is exposed.
     // e.g. Examine EndpointSlice, etc.
     if config.experimental_general_ingress {
-        is_exposed_by_ingress(stores, pod)
+        is_exposed_by_ingress(stores, pod) || is_exposed_by_service_loadbalancer(stores, pod)
     } else {
         is_exposed_by_target_group_binding(stores, pod)
     }
@@ -108,6 +108,21 @@ fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
     });
 
     ingress_exposed_services
+        .into_iter()
+        .any(|service_ref| is_exposing_service(stores, pod, service_ref))
+}
+
+fn is_exposed_by_service_loadbalancer(stores: &Stores, pod: &Pod) -> bool {
+    let loadbalancer_services = r#gen!({
+        let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
+        for service in stores.services(pod_namespace) {
+            if try_some!(service.spec?.type_?.as_str()) == Some("LoadBalancer") {
+                yield_!(service.to_object_ref(()));
+            }
+        }
+    });
+
+    loadbalancer_services
         .into_iter()
         .any(|service_ref| is_exposing_service(stores, pod, service_ref))
 }
