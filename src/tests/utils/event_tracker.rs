@@ -1,12 +1,13 @@
 use std::time::{Duration, Instant};
 
-use crate::CONTROLLER_NAME;
-use crate::tests::utils::context::TestContext;
 use futures::StreamExt;
 use futures::stream::BoxStream;
 use k8s_openapi::api::events::v1::Event;
 use kube::Api;
 use kube::api::{WatchEvent, WatchParams};
+
+use crate::CONTROLLER_NAME;
+use crate::tests::utils::context::TestContext;
 
 pub struct EventTracker {
     stream: BoxStream<'static, kube::Result<WatchEvent<Event>>>,

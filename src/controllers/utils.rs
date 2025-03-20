@@ -3,11 +3,6 @@ use std::hash::Hasher;
 use std::ops::Range;
 use std::time::Duration;
 
-use crate::error_codes::{
-    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
-    is_410_expired_error_response, is_transient_error,
-};
-use crate::{LoadBalancingConfig, try_some};
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::DynamicObject;
 use kube::runtime::controller::Action;
@@ -15,6 +10,12 @@ use kube::runtime::reflector::ObjectRef;
 use kube::runtime::{controller, watcher};
 use rand::{Rng, SeedableRng};
 use tracing::{debug, error, trace};
+
+use crate::error_codes::{
+    is_404_not_found_error, is_409_conflict_error, is_410_expired_error,
+    is_410_expired_error_response, is_transient_error,
+};
+use crate::{LoadBalancingConfig, try_some};
 
 pub fn get_stable_jitter(
     pod: &Pod,

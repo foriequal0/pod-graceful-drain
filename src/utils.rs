@@ -152,9 +152,9 @@ macro_rules! pub_if_test {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
+
+    use super::*;
 
     #[test]
     pub fn smoke_test_to_delete_params() {

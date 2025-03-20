@@ -109,12 +109,8 @@ pub async fn decrease_pod_disruption_budget(
 
 fn get_pdb(stores: &Stores, pod: &Pod) -> Result<Option<Arc<PodDisruptionBudget>>, NotMyFault> {
     let pod_disruption_budgets = r#gen!({
-        let pod_namespace = pod.metadata.namespace.as_deref();
-        for pdb in stores.pod_disruption_budgets() {
-            if pdb.meta().namespace.as_deref() != pod_namespace {
-                continue;
-            }
-
+        let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
+        for pdb in stores.pod_disruption_budgets(pod_namespace) {
             if matches_selector(pod, try_some!(pdb.spec?.selector?)) {
                 yield_!(pdb);
             }
@@ -364,13 +360,12 @@ fn set_status_condition(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::hash::Hash;
 
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
+    use super::*;
     use crate::from_json;
 
     fn store_from<K>(iter: impl IntoIterator<Item = K>) -> Store<K>

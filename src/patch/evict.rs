@@ -68,11 +68,10 @@ pub(super) fn mutate_to_evict(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use chrono::{DateTime, Utc};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
 
+    use super::*;
     use crate::from_json;
     use crate::patch::drain;
 

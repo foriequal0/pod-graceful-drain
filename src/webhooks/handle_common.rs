@@ -83,10 +83,10 @@ where
     };
 
     let object_ref: ObjectRef<K> =
-        get_object_ref_from_name(&request.name, request.namespace.as_ref());
+        get_object_ref_from_name(&request.name, request.namespace.as_deref());
 
     instrumented!(
-        span!(Level::TRACE, "admission", %object_ref, operation = ?request.operation, uid=request.uid),
+        span!(Level::INFO, "webhook", %object_ref, operation = ?request.operation, uid=request.uid),
         async move {
             trace!(user_info=?request.user_info);
 
@@ -126,9 +126,9 @@ where
                 Ok(InterceptResult::Allow) => {
                     HandlerResult::Value(AdmissionResponse::from(request).into_review())
                 }
-                Ok(InterceptResult::Deny(reason)) => {
-                    HandlerResult::Value(AdmissionResponse::from(request).deny(reason).into_review())
-                }
+                Ok(InterceptResult::Deny(reason)) => HandlerResult::Value(
+                    AdmissionResponse::from(request).deny(reason).into_review(),
+                ),
                 Ok(InterceptResult::Patch(response)) => {
                     HandlerResult::Value(response.into_review())
                 }

@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use crate::LoadBalancingConfig;
-use crate::error_types::Bug;
 use chrono::{DateTime, SecondsFormat, Utc};
 use eyre::Result;
 use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::ResourceExt;
+
+use crate::LoadBalancingConfig;
+use crate::error_types::Bug;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DrainingLabelValue {
@@ -34,7 +35,7 @@ pub fn try_set_pod_draining_label_value(pod: &mut Pod, value: DrainingLabelValue
     if let Ok(Some(existing)) = get_pod_draining_label_value(pod) {
         if existing == value {
             // do not set if same
-            return false;
+            return true;
         }
 
         if existing == DrainingLabelValue::Draining && value == DrainingLabelValue::Evicting {
@@ -222,10 +223,9 @@ pub fn set_pod_delete_options(pod: &mut Pod, config: Option<&DeleteOptions>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
 
+    use super::*;
     use crate::from_json;
 
     #[test]
@@ -326,7 +326,11 @@ mod tests {
             );
 
             assert!(
-                !try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
+                try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
+                "overwriting the same value should return true"
+            );
+            assert!(
+                try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Draining),
                 "should not regress progress"
             );
         }

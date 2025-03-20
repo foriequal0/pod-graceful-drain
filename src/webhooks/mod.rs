@@ -6,6 +6,9 @@ mod reactive_rustls_config;
 mod self_recognize;
 mod try_bind;
 
+use std::net::SocketAddr;
+use std::time::Duration;
+
 use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -18,8 +21,6 @@ use kube::core::admission::AdmissionReview;
 use kube::runtime::events::Recorder;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
-use std::net::SocketAddr;
-use std::time::Duration;
 use tracing::{Instrument, Level, info, span};
 
 use crate::api_resolver::ApiResolver;

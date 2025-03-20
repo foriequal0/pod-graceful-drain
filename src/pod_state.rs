@@ -2,14 +2,13 @@ use std::collections::{HashMap, HashSet};
 
 use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::{Pod, Service};
+use kube::Resource;
 use kube::runtime::reflector::ObjectRef;
-use kube::{Resource, ResourceExt};
 
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;
 use crate::elbv2::apis::TargetType;
 use crate::reflector::Stores;
 use crate::selector::matches_labels;
-use crate::utils::get_object_ref_from_name;
 use crate::{Config, try_some};
 
 pub fn is_pod_running(pod: &Pod) -> bool {
@@ -83,19 +82,12 @@ fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
     let ingress_exposed_services = r#gen!({
         let mut seen = HashSet::new();
-        let pod_namespace = pod.metadata.namespace.as_ref();
-        for ingress in stores.ingresses() {
-            if ingress.meta().namespace.as_ref() != pod_namespace {
-                continue;
-            }
-
+        let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
+        for ingress in stores.ingresses(pod_namespace) {
             if let Some(default_service_name) =
                 try_some!(&ingress.spec?.default_backend?.service?.name)
             {
-                let service_ref = get_object_ref_from_name::<Service>(
-                    &default_service_name,
-                    ingress.namespace().as_ref(),
-                );
+                let service_ref = ObjectRef::new(default_service_name).within(pod_namespace);
                 if !seen.insert(service_ref.clone()) {
                     continue;
                 }
@@ -105,10 +97,7 @@ fn is_exposed_by_ingress(stores: &Stores, pod: &Pod) -> bool {
             for rule in try_some!(ingress.spec?.rules?).unwrap_or(&vec![]) {
                 for path in try_some!(&rule.http?.paths).unwrap_or(&vec![]) {
                     if let Some(service_name) = try_some!(&path.backend.service?.name) {
-                        let service_ref = get_object_ref_from_name::<Service>(
-                            &service_name,
-                            ingress.namespace().as_ref(),
-                        );
+                        let service_ref = ObjectRef::new(service_name).within(pod_namespace);
                         if !seen.insert(service_ref.clone()) {
                             continue;
                         }
@@ -128,19 +117,14 @@ fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
     // TODO: Build inverted index in reconciler incrementally?
     let tgb_exposed_service = r#gen!({
         let mut seen = HashSet::new();
-        let pod_namespace = pod.metadata.namespace.as_ref();
-        for tgb in stores.target_group_bindings() {
-            if tgb.meta().namespace.as_ref() != pod_namespace {
-                continue;
-            }
-
+        let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
+        for tgb in stores.target_group_bindings(pod_namespace) {
             if try_some!(tgb.spec?.target_type?) != Some(&TargetType::Ip) {
                 continue;
             }
 
             if let Some(service_name) = try_some!(&tgb.spec?.service_ref?.name) {
-                let service_ref =
-                    get_object_ref_from_name::<Service>(&service_name, tgb.namespace().as_ref());
+                let service_ref = ObjectRef::new(service_name).within(pod_namespace);
                 if !seen.insert(service_ref.clone()) {
                     continue;
                 }
@@ -181,14 +165,13 @@ fn is_exposing_service(stores: &Stores, pod: &Pod, service_ref: ObjectRef<Servic
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::hash::Hash;
     use std::time::Duration;
 
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
 
+    use super::*;
     use crate::from_json;
 
     fn store_from<K>(iter: impl IntoIterator<Item = K>) -> Store<K>

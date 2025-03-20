@@ -79,13 +79,13 @@ fn mutate_to_evict_later(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use chrono::{DateTime, Utc};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 
+    use super::*;
     use crate::from_json;
     use crate::patch::drain;
     use crate::patch::evict::mutate_to_evict;
-    use chrono::{DateTime, Utc};
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 
     #[test]
     fn smoke_test() {
