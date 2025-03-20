@@ -3,10 +3,9 @@ use std::collections::{HashMap, HashSet};
 use genawaiter::{rc::r#gen, yield_};
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::Resource;
-use kube::runtime::reflector::ObjectRef;
+use kube::runtime::reflector::{Lookup, ObjectRef};
 
 use crate::elbv2::TARGET_HEALTH_POD_CONDITION_TYPE_PREFIX;
-use crate::elbv2::apis::TargetType;
 use crate::reflector::Stores;
 use crate::selector::matches_labels;
 use crate::{Config, try_some};
@@ -119,10 +118,6 @@ fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
         let mut seen = HashSet::new();
         let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
         for tgb in stores.target_group_bindings(pod_namespace) {
-            if try_some!(tgb.spec?.target_type?) != Some(&TargetType::Ip) {
-                continue;
-            }
-
             if let Some(service_name) = try_some!(&tgb.spec?.service_ref?.name) {
                 let service_ref = ObjectRef::new(service_name).within(pod_namespace);
                 if !seen.insert(service_ref.clone()) {
@@ -134,6 +129,8 @@ fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
         }
     });
 
+    // TODO: further filter by node selector when targetType: instance
+
     let is_exposed_by_tgb = tgb_exposed_service
         .into_iter()
         .any(|service_ref| is_exposing_service(stores, pod, service_ref));
@@ -142,7 +139,6 @@ fn is_exposed_by_target_group_binding(stores: &Stores, pod: &Pod) -> bool {
     }
 
     // The pod once had corresponding TargetGroupBinding, but it is somehow gone.
-    // We don't know whether its TargetType was IP or not.
     // But, true is more conservative than false.
     try_some!(pod.spec?.readiness_gates?)
         .unwrap_or(&vec![])
