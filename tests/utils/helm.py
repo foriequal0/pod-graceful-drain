@@ -35,8 +35,7 @@ def helm_install(
     set_values_args = []
     if values:
         for key, value in values.items():
-            set_values_args.append("--set")
-            set_values_args.append(f"{key}={value}")
+            set_values_args.append(f"--set={key}={value}")
 
     proj_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     helm(
@@ -47,12 +46,9 @@ def helm_install(
         os.path.join(proj_dir, "charts/pod-graceful-drain"),
         "--create-namespace",
         f"--namespace={namespace}",
-        "--set",
-        f"image.repository={repo}",
-        "--set",
-        f"image.tag={tag}",
-        "--set",
-        "logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info",
+        f"--set=image.repository={repo}",
+        f"--set=image.tag={tag}",
+        f"--set=logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info",
         *set_values_args,
         "--wait=true",
         "--timeout=1m",

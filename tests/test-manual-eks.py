@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import os
 
 import click
 
@@ -16,122 +17,67 @@ def cli():
 
 
 @cli.command()
-def setup():
+def setup_cluster():
     aws_profile = get_test_aws_profile()
     with TemporaryDirectory(prefix="test-pgd-") as tempdir:
         tmp_path = Path(tempdir)
         eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
         eks_ctx.create_cluster()
 
-        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), namespace=None)
-        helm(
-            kubectl_ctx,
-            "upgrade",
-            "--install",
-            "aws-load-balancer-controller",
-            "aws-load-balancer-controller",
-            "--repo=https://aws.github.io/eks-charts",
-            "--namespace=kube-system",
-            f"--set=clusterName={eks_ctx.cluster_name}",
-            "--set=serviceAccount.create=false",
-            "--set=serviceAccount.name=aws-load-balancer-controller",
-            "--set=podDisruptionBudget.minAvailable=1",
-            "--wait=true",
-        )
-
         ecr_ctx = EcrContext(aws_profile, "test-pgd")
         ecr_ctx.create_repository()
 
+
+@cli.command()
+def setup_addons():
+    aws_profile = get_test_aws_profile()
+    with TemporaryDirectory(prefix="test-pgd-") as tempdir:
+        tmp_path = Path(tempdir)
+
+        eks_ctx = EksctlContext(tmp_path, aws_profile, "test-pgd")
+        kubectl_ctx = KubectlContext(eks_ctx.get_kubeconfig(), namespace=None)
+        ecr_ctx = EcrContext(aws_profile, "test-pgd")
         docker_ctx = DockerContext(
             tmp_path, ecr_ctx.login_password, ecr_ctx.proxy_endpoint
         )
-        docker(
-            docker_ctx,
-            "image",
-            "push",
-            "--authfile",
-            docker_ctx.authfile,
-            "localhost/pod-graceful-drain:latest",
-            f"{ecr_ctx.repository_uri}:latest",
-        )
-        helm_install(
-            kubectl_ctx,
-            "pod-graceful-drain",
-            ecr_ctx.repository_uri,
-        )
 
-        kubectl_stdin(
-            kubectl_ctx,
-            "apply",
-            "-f",
-            "-",
-            stdin="""
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: some-pdb
-spec:
-  selector:
-    matchLabels:
-      app: nginx
-  minAvailable: 1
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: some-deployment
-  labels:
-    app: nginx
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: app
-        image: public.ecr.aws/nginx/nginx
-        ports:
-        - name: http
-          containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: some-service
-spec:
-  ports:
-  - name: http
-    port: 80
-  selector:
-    app: nginx
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: some-ingress
-  annotations:
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-spec:
-  ingressClassName: alb
-  rules:
-  - http:
-      paths:
-      - backend:
-          service:
-            name: some-service
-            port:
-              name: http
-        pathType: Exact
-        path: /
-            """,
-        )
+        install_alb_controller(eks_ctx, kubectl_ctx)
+        install_pgd(docker_ctx, ecr_ctx, kubectl_ctx)
+
+
+def install_alb_controller(eks_ctx, kubectl_ctx):
+    helm(
+        kubectl_ctx,
+        "upgrade",
+        "--install",
+        "aws-load-balancer-controller",
+        "aws-load-balancer-controller",
+        "--repo=https://aws.github.io/eks-charts",
+        "--namespace=kube-system",
+        f"--set=clusterName={eks_ctx.cluster_name}",
+        "--set=serviceAccount.create=false",
+        "--set=serviceAccount.name=aws-load-balancer-controller",
+        "--set=podDisruptionBudget.minAvailable=1",
+        "--wait=true",
+    )
+
+
+def install_pgd(docker_ctx, ecr_ctx, kubectl_ctx):
+    docker(
+        docker_ctx,
+        "image",
+        "push",
+        "--authfile",
+        docker_ctx.authfile,
+        "localhost/pod-graceful-drain:latest",
+        f"{ecr_ctx.repository_uri}:latest",
+    )
+    helm_install(
+        kubectl_ctx,
+        "pod-graceful-drain",
+        ecr_ctx.repository_uri,
+        values={"image.pullPolicy": "Always"},
+    )
 
 
 @cli.command()
