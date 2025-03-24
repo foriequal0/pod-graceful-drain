@@ -14,14 +14,11 @@ helm install \
   pod-graceful-drain
 ```
 
-### HA configuration
+### Setup for `aws-load-balancer-controller`
 
-`pod-graceful-drain` itself is (mostly) HA by default.
-
-If you're using `aws-load-balancer-controller`, and you want to prevent 5xx errors during the node draining
-(e.g. manual `kubectl drain`, cluster upgrade, autoscaling group instance refresh, etc),
-please make sure that your `aws-load-balancer-controller` has [HA configuration](https://github.com/kubernetes-sigs/aws-load-balancer-controller/tree/e942a0f6a9459a2524b0fdca05d13343fb308d41/helm/aws-load-balancer-controller#ha-configuration),
+Please make sure that it has [HA configuration](https://github.com/kubernetes-sigs/aws-load-balancer-controller/tree/e942a0f6a9459a2524b0fdca05d13343fb308d41/helm/aws-load-balancer-controller#ha-configuration),
 **especially `podDisruptionBudget` config** since it's not been set by default.
+Also make sure that **[readiness gate injection](https://github.com/kubernetes-sigs/aws-load-balancer-controller/blob/858b93b7987f1cf18c4c7d0e6b8be68cfdcae3d1/docs/deploy/pod_readiness_gate.md#configuration) is set** properly for namespaces that you want to drain gracefully, which is also not a default configuration.
 
 ## What is this?
 
