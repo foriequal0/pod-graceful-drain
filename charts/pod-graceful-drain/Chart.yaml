@@ -3,5 +3,5 @@ name: pod-graceful-drain
 description: |
   You don't need `lifecycle: { preStop: { exec: { command: ["sleep", "30"] } } }`
 type: application
-version: 0.1.0-rc.10
-appVersion: "v0.1.0-rc.10"
+version: 0.1.0
+appVersion: "v0.1.0"

@@ -31,7 +31,7 @@ use crate::webhooks::handle_common::InterceptResult;
 ///
 /// * ReplicaSet controller: it can retry and progress.
 /// * `kubectl rollout restart`: It patches the deployment's annotation `kubectl.kubernetes.io/restartedAt`,
-///    so it is controlled by ReplicaSet controller.
+///   so it is controlled by ReplicaSet controller.
 pub async fn handle_delete(
     state: &AppState,
     request: &AdmissionRequest<Pod>,
