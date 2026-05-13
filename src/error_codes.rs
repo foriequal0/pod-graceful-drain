@@ -1,5 +1,5 @@
 use kube::Error;
-use kube::error::ErrorResponse;
+use kube::error::Status;
 
 const STATUS_CODE_404_NOT_FOUND: u16 = 404;
 const STATUS_CODE_408_TIMEOUT: u16 = 408;
@@ -13,22 +13,30 @@ const STATUS_CODE_503_SERVICE_UNAVAILABLE: u16 = 503;
 const STATUS_CODE_504_GATEWAY_TIMEOUT: u16 = 504;
 
 pub fn is_404_not_found_error(err: &Error) -> bool {
+    let Error::Api(status) = err else {
+        return false;
+    };
+
     matches!(
-        err,
-        Error::Api(ErrorResponse {
+        status.as_ref(),
+        Status {
             code: STATUS_CODE_404_NOT_FOUND,
             ..
-        })
+        }
     )
 }
 
 pub fn is_409_conflict_error(err: &Error) -> bool {
+    let Error::Api(status) = err else {
+        return false;
+    };
+
     matches!(
-        err,
-        Error::Api(ErrorResponse {
+        status.as_ref(),
+        Status {
             code: STATUS_CODE_409_CONFLICT,
             ..
-        })
+        }
     )
 }
 
@@ -37,10 +45,10 @@ pub fn is_410_expired_error(err: &Error) -> bool {
     matches!(err, Error::Api(err) if is_410_expired_error_response(err))
 }
 
-pub fn is_410_expired_error_response(err: &ErrorResponse) -> bool {
+pub fn is_410_expired_error_response(status: &Status) -> bool {
     matches!(
-        err,
-        ErrorResponse {
+        status,
+        Status {
             code: STATUS_CODE_410_GONE,
             .. // reason: "Expired". It seems that reason is changing from "Gone"
         }
@@ -48,21 +56,29 @@ pub fn is_410_expired_error_response(err: &ErrorResponse) -> bool {
 }
 
 pub fn is_422_invalid_for_json_patch_test_error(err: &Error) -> bool {
+    let Error::Api(status) = err else {
+        return false;
+    };
+
     matches!(
-        err,
-        Error::Api(ErrorResponse {
+        status.as_ref(),
+        Status {
             code: STATUS_CODE_422_UNPROCESSABLE_ENTITY,
             message,
             ..
-        })
+        }
         // if there's a bug in the patch, different messages are returned
         if message == "the server rejected our request due to an error in our request"
     )
 }
 
 pub fn is_transient_error(err: &Error) -> bool {
-    match err {
-        Error::Api(ErrorResponse {
+    let Error::Api(status) = err else {
+        return false;
+    };
+
+    match status.as_ref() {
+        Status {
             code:
                 STATUS_CODE_408_TIMEOUT
                 | STATUS_CODE_429_TOO_MANY_REQUESTS
@@ -70,13 +86,13 @@ pub fn is_transient_error(err: &Error) -> bool {
                 | STATUS_CODE_503_SERVICE_UNAVAILABLE
                 | STATUS_CODE_504_GATEWAY_TIMEOUT,
             ..
-        }) => true,
+        } => true,
 
-        Error::Api(ErrorResponse {
+        Status {
             code: STATUS_CODE_500_INTERNAL_SERVER_ERROR,
             reason,
             ..
-        }) if reason == "ServerTimeout" => true,
+        } if reason == "ServerTimeout" => true,
 
         // TODO: Handle more transient err
         _ => false,

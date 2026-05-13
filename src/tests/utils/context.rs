@@ -11,7 +11,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::{ApiResource, DeleteParams, DynamicObject};
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Api, Client, Config};
-use rand::Rng;
+use rand::RngExt;
 use tempfile::NamedTempFile;
 use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;
@@ -23,7 +23,7 @@ use crate::tests::utils::run_command::{
 };
 use crate::{ApiResolver, LoadBalancingConfig, Shutdown};
 
-const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.32.0";
+const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.35.1";
 const DEFAULT_TEST_CLUSTER_NAME: &str = "test-pgd";
 const TEST_NAMESPACE_PREFIX: &str = "test";
 const TEST_NAMESPACE_LABEL_KEY: &str = "test-pgd-ns";

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 use eyre::Result;
 use futures::StreamExt;
+use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::api::Preconditions;
@@ -12,7 +12,7 @@ use kube::runtime::reflector::ObjectRef;
 use kube::runtime::{Controller, controller, watcher};
 use kube::{Api, ResourceExt};
 use thiserror::Error;
-use tracing::{Level, debug, error, info, span, warn};
+use tracing::{Level, debug, info, span, warn};
 
 use crate::api_resolver::ApiResolver;
 use crate::controllers::utils::{
@@ -107,9 +107,9 @@ async fn reconcile(
 
     let drain_until = drain_timestamp + context.config.delete_after;
     if am_i_pod_drain_controller(&pod, &context.loadbalancing) {
-        let remaining = drain_until - Utc::now();
-        if let Ok(remaining) = remaining.to_std() {
-            return Ok(Action::requeue(remaining));
+        let remaining = Timestamp::now().duration_until(drain_until);
+        if remaining.is_positive() {
+            return Ok(Action::requeue(remaining.unsigned_abs()));
         }
     } else {
         // Let the original controller handle first.
@@ -120,9 +120,9 @@ async fn reconcile(
             Default::default()..CONTROLLER_TIMEOUT_JITTER,
         );
         let jittered = controller_exclusive_until + jitter;
-        let remaining = jittered - Utc::now();
-        if let Ok(remaining) = remaining.to_std() {
-            return Ok(Action::requeue(remaining));
+        let remaining = Timestamp::now().duration_until(jittered);
+        if remaining.is_positive() {
+            return Ok(Action::requeue(remaining.unsigned_abs()));
         }
     };
 

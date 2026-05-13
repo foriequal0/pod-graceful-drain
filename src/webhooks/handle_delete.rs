@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use eyre::{Context, Result, eyre};
+use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use kube::core::admission::AdmissionRequest;
 
@@ -39,7 +39,7 @@ pub async fn handle_delete(
 ) -> Result<InterceptResult> {
     const DEADLINE_OFFSET: Duration = Duration::from_secs(5);
 
-    let started_at = Utc::now();
+    let started_at = Timestamp::now();
     let deadline = started_at + timeout - DEADLINE_OFFSET;
 
     let pod = request
@@ -134,7 +134,7 @@ pub async fn handle_delete(
             if let Ok(Some(drain_timestamp)) = get_pod_drain_timestamp(pod) {
                 // TODO: precisely wait until deleted
                 let drain_until = drain_timestamp + state.config.delete_after;
-                if Utc::now() < drain_until {
+                if Timestamp::now() < drain_until {
                     report_for(
                         &state.recorder,
                         pod,
@@ -192,13 +192,14 @@ pub async fn handle_delete(
 async fn drain_until_or_deadline(
     state: &AppState,
     pod: &Pod,
-    drain_until: DateTime<Utc>,
-    deadline: DateTime<Utc>,
+    drain_until: Timestamp,
+    deadline: Timestamp,
 ) {
     if drain_until < deadline {
-        let to_sleep = (drain_until - Utc::now()).to_std().unwrap_or_default();
-
-        tokio::time::sleep(to_sleep).await;
+        let to_sleep = Timestamp::now().duration_until(drain_until);
+        if to_sleep.is_positive() {
+            tokio::time::sleep(to_sleep.unsigned_abs()).await;
+        }
 
         report_for(
             &state.recorder,
@@ -209,8 +210,10 @@ async fn drain_until_or_deadline(
         )
         .await;
     } else {
-        let to_sleep = (deadline - Utc::now()).to_std().unwrap_or_default();
-        tokio::time::sleep(to_sleep).await;
+        let to_sleep = Timestamp::now().duration_until(deadline);
+        if to_sleep.is_positive() {
+            tokio::time::sleep(to_sleep.unsigned_abs()).await;
+        }
 
         report_for(
             &state.recorder,

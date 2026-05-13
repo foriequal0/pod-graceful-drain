@@ -9,10 +9,9 @@ use eyre::Result;
 use futures::future::BoxFuture;
 use k8s_openapi::serde::Serialize;
 use kube::Resource;
-use kube::client::Status;
-use kube::core::DynamicObject;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use kube::core::response::{StatusCause, StatusDetails, StatusSummary};
+use kube::core::{DynamicObject, Status};
 use kube::runtime::reflector::ObjectRef;
 use tracing::{Level, span, trace};
 
@@ -25,7 +24,7 @@ use crate::webhooks::self_recognize::is_my_serviceaccount;
 #[derive(Debug)]
 pub enum HandlerResult<T> {
     Value(T),
-    Status(Status),
+    Status(Box<Status>),
 }
 
 impl<T> IntoResponse for HandlerResult<T>
@@ -41,12 +40,12 @@ where
                 *resp.status_mut() =
                     StatusCode::try_from(status.code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-                if let Some(details) = &status.details {
-                    if details.retry_after_seconds > 0 {
-                        let name = HeaderName::from_static("retry-after");
-                        let value = HeaderValue::from(details.retry_after_seconds);
-                        resp.headers_mut().insert(name, value);
-                    }
+                if let Some(details) = &status.details
+                    && details.retry_after_seconds > 0
+                {
+                    let name = HeaderName::from_static("retry-after");
+                    let value = HeaderValue::from(details.retry_after_seconds);
+                    resp.headers_mut().insert(name, value);
                 }
 
                 resp
@@ -77,7 +76,8 @@ where
         None => {
             return HandlerResult::Status(
                 Status::failure("AdmissionReview.request is missing", "BadRequest")
-                    .with_code(StatusCode::BAD_REQUEST.as_u16()),
+                    .with_code(StatusCode::BAD_REQUEST.as_u16())
+                    .boxed(),
             );
         }
     };
@@ -134,7 +134,7 @@ where
                 }
                 Err(err) => {
                     let status = handle_error(err.as_ref(), &state, &object_ref).await;
-                    HandlerResult::Status(status)
+                    HandlerResult::Status(status.boxed())
                 }
             }
         }
@@ -172,7 +172,7 @@ where
         chain = err.source();
     }
 
-    let status = Status {
+    Status {
         code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         status: Some(StatusSummary::Failure),
         reason: String::from("InternalError"),
@@ -185,7 +185,6 @@ where
             causes,
             retry_after_seconds: 0,
         }),
-    };
-
-    status
+        metadata: None,
+    }
 }

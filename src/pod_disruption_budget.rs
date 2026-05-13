@@ -1,9 +1,11 @@
+use std::convert::Into;
 use std::fmt::Display;
 use std::sync::Arc;
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use eyre::Result;
 use genawaiter::{rc::r#gen, yield_};
+use jiff::Timestamp;
+use jiff::tz::TimeZone;
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::api::policy::v1::{PodDisruptionBudget, PodDisruptionBudgetStatus};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
@@ -11,7 +13,6 @@ use kube::api::PostParams;
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Resource};
 use thiserror::Error;
-use tracing::error;
 
 use crate::error_codes::is_404_not_found_error;
 use crate::error_types::{Bug, NotMyFault};
@@ -89,12 +90,8 @@ pub async fn decrease_pod_disruption_budget(
     // replace(PUT) will take care of resourceVersion
     // https://kubernetes.io/docs/reference/using-api/api-concepts/#patch-and-apply
     let api: Api<PodDisruptionBudget> = api_resolver.namespaced(&pod_namespace);
-    let data = serde_json::to_vec(&pdb).map_err(|err| NotMyFault {
-        message: "failed to serialize pdb".to_owned(),
-        source: Some(err.into()),
-    })?;
     let result = api
-        .replace_status(&pdb_name, &PostParams::default(), data)
+        .replace_status(&pdb_name, &PostParams::default(), &pdb)
         .await;
 
     match result {
@@ -159,10 +156,11 @@ fn check_pod_disruption_policy(
         }
         Some(unhealthy_pod_eviction_policy_type::IF_HEALTHY_BUDGET) => {
             // unhealthy pod can be disrupted when healthy budget allows
-            if let Some(status) = pdb.status.as_ref() {
-                if status.current_healthy >= status.desired_healthy && status.desired_healthy > 0 {
-                    return Ok(PodDisruptionPolicyResult::Evict);
-                }
+            if let Some(status) = pdb.status.as_ref()
+                && status.current_healthy >= status.desired_healthy
+                && status.desired_healthy > 0
+            {
+                return Ok(PodDisruptionPolicyResult::Evict);
             };
 
             Ok(PodDisruptionPolicyResult::EvictIfBudgetAllows)
@@ -182,13 +180,13 @@ fn check_and_decrease(
     pod_name: &str,
     pdb: &mut PodDisruptionBudget,
 ) -> Result<(), DecreasePodDisruptionBudgetError> {
-    check_and_decrease_impl(pod_name, pdb, Utc::now())
+    check_and_decrease_impl(pod_name, pdb, Timestamp::now())
 }
 
 fn check_and_decrease_impl(
     pod_name: &str,
     pdb: &mut PodDisruptionBudget,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<(), DecreasePodDisruptionBudgetError> {
     let status = pdb.status.get_or_insert_default();
 
@@ -267,7 +265,7 @@ const INSUFFICIENT_PODS_REASON: &str = "InsufficientPods";
 const CONDITION_TRUE: &str = "True";
 const CONDITION_FALSE: &str = "False";
 
-fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, now: DateTime<Utc>) {
+fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, now: Timestamp) {
     let conditions = status.conditions.get_or_insert_default();
 
     if status.disruptions_allowed > 0 {
@@ -280,7 +278,7 @@ fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, n
                 observed_generation: status.observed_generation,
 
                 // default value
-                last_transition_time: TIME_ZERO,
+                last_transition_time: get_time_zero(),
                 message: String::new(),
             },
             now,
@@ -295,7 +293,7 @@ fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, n
                 observed_generation: status.observed_generation,
 
                 // default value
-                last_transition_time: TIME_ZERO,
+                last_transition_time: get_time_zero(),
                 message: String::new(),
             },
             now,
@@ -303,18 +301,20 @@ fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, n
     }
 }
 
-const TIME_ZERO: Time = Time(
-    NaiveDateTime::new(
-        NaiveDate::from_ymd_opt(1, 1, 1).expect("valid NaiveDate"),
-        NaiveTime::from_hms_opt(0, 0, 0).expect("valid NaiveTime"),
+/// https://pkg.go.dev/time#Time.IsZero
+fn get_time_zero() -> Time {
+    Time(
+        jiff::civil::DateTime::constant(1, 1, 1, 0, 0, 0, 0)
+            .to_zoned(TimeZone::UTC)
+            .expect("not near minimum/maximum should success converting")
+            .timestamp(),
     )
-    .and_utc(),
-);
+}
 
 fn set_status_condition(
     conditions: &mut Vec<Condition>,
     mut new_condition: Condition,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> bool {
     let existing_condition = conditions
         .iter_mut()
@@ -322,7 +322,7 @@ fn set_status_condition(
     let existing_condition = if let Some(existing_condition) = existing_condition {
         existing_condition
     } else {
-        if new_condition.last_transition_time == TIME_ZERO {
+        if new_condition.last_transition_time == get_time_zero() {
             new_condition.last_transition_time = Time(now);
         }
         conditions.push(new_condition);
@@ -332,7 +332,7 @@ fn set_status_condition(
     let mut changed = false;
     if existing_condition.status != new_condition.status {
         existing_condition.status = new_condition.status;
-        if new_condition.last_transition_time != TIME_ZERO {
+        if new_condition.last_transition_time != get_time_zero() {
             existing_condition.last_transition_time = new_condition.last_transition_time;
         } else {
             existing_condition.last_transition_time = Time(now);
@@ -360,10 +360,10 @@ fn set_status_condition(
 
 #[cfg(test)]
 mod tests {
-    use std::hash::Hash;
-
     use kube::runtime::reflector::{Store, store};
     use kube::runtime::watcher::Event;
+    use std::hash::Hash;
+    use std::str::FromStr;
 
     use super::*;
     use crate::from_json;
@@ -586,9 +586,7 @@ mod tests {
                     "disruptionsAllowed": 2,
                 },
             });
-            let now = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let now = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
             assert_matches!(
                 check_and_decrease_impl("test", &mut pdb, now),
                 Ok(()),
@@ -615,9 +613,7 @@ mod tests {
                     "disruptionsAllowed": 1,
                 },
             });
-            let now = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let now = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
             assert_matches!(
                 check_and_decrease_impl("test", &mut pdb, now),
                 Ok(()),

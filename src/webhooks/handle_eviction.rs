@@ -32,18 +32,20 @@ pub async fn handle_eviction(
         .ok_or(eyre!("object for mutation is missing"))?;
 
     let object_ref = get_object_ref_from_name(&request.name, request.namespace.as_deref());
-    if let Some(dry_run) = try_some!(eviction.delete_options?.dry_run?) {
-        if !dry_run.is_empty() {
-            debug_report_for_ref(
-                &state.recorder,
-                &object_ref,
-                "Allow",
-                "DryRun",
-                format!("Eviction request is allowed because `eviction.deleteOptions.dryRun = {dry_run:?}`"),
-            )
-                .await;
-            return Ok(InterceptResult::Allow);
-        }
+    if let Some(dry_run) = try_some!(eviction.delete_options?.dry_run?)
+        && !dry_run.is_empty()
+    {
+        debug_report_for_ref(
+            &state.recorder,
+            &object_ref,
+            "Allow",
+            "DryRun",
+            format!(
+                "Eviction request is allowed because `eviction.deleteOptions.dryRun = {dry_run:?}`"
+            ),
+        )
+        .await;
+        return Ok(InterceptResult::Allow);
     }
 
     let Some(pod) = state.stores.get_pod(&object_ref) else {
