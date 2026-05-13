@@ -19,7 +19,7 @@ use crate::tests::utils::pod_state::{
 use crate::tests::utils::self_signed_cert;
 use crate::{
     CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
-    apply_yaml, kubectl, start_reflectors, start_webhook,
+    apply_yaml, eventually, kubectl, start_reflectors, start_webhook,
 };
 
 async fn setup(context: &TestContext, config: Config) {
@@ -188,7 +188,7 @@ spec:
         );
 
         assert!(
-            {
+            eventually!({
                 let es_list: ObjectList<EndpointSlice> = context
                     .api_resolver
                     .all()
@@ -196,7 +196,7 @@ spec:
                     .await
                     .unwrap();
                 es_list.items.iter().all(|es| es.endpoints.is_empty())
-            },
+            }),
             "pod should've been removed from the endpointslices"
         );
 
@@ -597,7 +597,7 @@ spec:
             "pod should've been patched"
         );
         assert!(
-            {
+            eventually!({
                 let es_list: ObjectList<EndpointSlice> = context
                     .api_resolver
                     .all()
@@ -605,7 +605,7 @@ spec:
                     .await
                     .unwrap();
                 es_list.items.iter().all(|es| es.endpoints.is_empty())
-            },
+            }),
             "pod should've been removed from the endpointslices"
         );
 
