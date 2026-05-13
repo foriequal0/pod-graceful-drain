@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use eyre::Result;
-use rand::Rng;
+use rand::RngExt;
 use tokio::net::TcpListener;
 
 use crate::webhooks::config::BindConfig;

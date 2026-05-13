@@ -11,7 +11,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::{ApiResource, DeleteParams, DynamicObject};
 use kube::config::{KubeConfigOptions, Kubeconfig};
 use kube::{Api, Client, Config};
-use rand::Rng;
+use rand::RngExt;
 use tempfile::NamedTempFile;
 use tokio::task::JoinError;
 use tracing::dispatcher::DefaultGuard;

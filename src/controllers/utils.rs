@@ -8,7 +8,7 @@ use kube::api::DynamicObject;
 use kube::runtime::controller::Action;
 use kube::runtime::reflector::ObjectRef;
 use kube::runtime::{controller, watcher};
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use tracing::{debug, error, trace};
 
 use crate::error_codes::{

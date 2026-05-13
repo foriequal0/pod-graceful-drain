@@ -17,7 +17,7 @@ pub async fn generate(subject: String) -> Result<SelfSignedCert> {
     let ca_bundle = base64::engine::general_purpose::STANDARD.encode(cert_key.cert.pem());
     let cert = cert_key.cert.der().clone();
     let private_key = {
-        let pem = cert_key.key_pair.serialize_pem();
+        let pem = cert_key.signing_key.serialize_pem();
         let mut cursor = Cursor::new(pem.as_bytes());
         rustls_pemfile::private_key(&mut cursor)?.context("private key")?
     };
