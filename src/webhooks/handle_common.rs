@@ -9,10 +9,9 @@ use eyre::Result;
 use futures::future::BoxFuture;
 use k8s_openapi::serde::Serialize;
 use kube::Resource;
-use kube::client::Status;
-use kube::core::DynamicObject;
 use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
 use kube::core::response::{StatusCause, StatusDetails, StatusSummary};
+use kube::core::{DynamicObject, Status};
 use kube::runtime::reflector::ObjectRef;
 use tracing::{Level, span, trace};
 
@@ -25,7 +24,7 @@ use crate::webhooks::self_recognize::is_my_serviceaccount;
 #[derive(Debug)]
 pub enum HandlerResult<T> {
     Value(T),
-    Status(Status),
+    Status(Box<Status>),
 }
 
 impl<T> IntoResponse for HandlerResult<T>
@@ -77,7 +76,8 @@ where
         None => {
             return HandlerResult::Status(
                 Status::failure("AdmissionReview.request is missing", "BadRequest")
-                    .with_code(StatusCode::BAD_REQUEST.as_u16()),
+                    .with_code(StatusCode::BAD_REQUEST.as_u16())
+                    .boxed(),
             );
         }
     };
@@ -134,7 +134,7 @@ where
                 }
                 Err(err) => {
                     let status = handle_error(err.as_ref(), &state, &object_ref).await;
-                    HandlerResult::Status(status)
+                    HandlerResult::Status(status.boxed())
                 }
             }
         }
@@ -185,5 +185,6 @@ where
             causes,
             retry_after_seconds: 0,
         }),
+        metadata: None,
     }
 }

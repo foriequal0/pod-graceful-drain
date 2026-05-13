@@ -88,12 +88,8 @@ pub async fn decrease_pod_disruption_budget(
     // replace(PUT) will take care of resourceVersion
     // https://kubernetes.io/docs/reference/using-api/api-concepts/#patch-and-apply
     let api: Api<PodDisruptionBudget> = api_resolver.namespaced(&pod_namespace);
-    let data = serde_json::to_vec(&pdb).map_err(|err| NotMyFault {
-        message: "failed to serialize pdb".to_owned(),
-        source: Some(err.into()),
-    })?;
     let result = api
-        .replace_status(&pdb_name, &PostParams::default(), data)
+        .replace_status(&pdb_name, &PostParams::default(), &pdb)
         .await;
 
     match result {
