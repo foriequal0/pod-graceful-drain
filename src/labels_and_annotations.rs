@@ -1,12 +1,12 @@
-use std::collections::BTreeMap;
-use std::collections::btree_map::Entry;
-
-use chrono::{DateTime, SecondsFormat, Utc};
 use eyre::Result;
 use genawaiter::{rc::r#gen, yield_};
+use jiff::{Timestamp, Unit};
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::ResourceExt;
+use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
+use std::str::FromStr;
 
 use crate::LoadBalancingConfig;
 use crate::error_types::Bug;
@@ -57,20 +57,22 @@ pub fn try_set_pod_draining_label_value(pod: &mut Pod, value: DrainingLabelValue
 
 const DRAIN_TIMESTAMP_ANNOTATION_KEY: &str = "pod-graceful-drain/drain-timestamp";
 
-pub fn get_pod_drain_timestamp(pod: &Pod) -> Result<Option<DateTime<Utc>>, String> {
+pub fn get_pod_drain_timestamp(pod: &Pod) -> Result<Option<Timestamp>, String> {
     let Some(str) = pod.annotations().get(DRAIN_TIMESTAMP_ANNOTATION_KEY) else {
         return Ok(None);
     };
 
-    let result = DateTime::parse_from_rfc3339(str);
-    match result {
-        Ok(datetime) => Ok(Some(datetime.with_timezone(&Utc))),
+    match Timestamp::from_str(str) {
+        Ok(timestamp) => Ok(Some(timestamp)),
         Err(_) => Err(str.to_owned()),
     }
 }
 
-pub fn try_set_pod_drain_timestamp(pod: &mut Pod, value: DateTime<Utc>) -> bool {
-    let str = value.to_rfc3339_opts(SecondsFormat::Secs, true);
+pub fn try_set_pod_drain_timestamp(pod: &mut Pod, value: Timestamp) -> bool {
+    let str = value
+        .round(Unit::Second)
+        .expect("round to second should success")
+        .to_string();
     match pod
         .annotations_mut()
         .entry(String::from(DRAIN_TIMESTAMP_ANNOTATION_KEY))
@@ -80,7 +82,7 @@ pub fn try_set_pod_drain_timestamp(pod: &mut Pod, value: DateTime<Utc>) -> bool 
             true
         }
         Entry::Occupied(mut entry) => {
-            let existing = DateTime::parse_from_rfc3339(entry.get()).map(|x| x.with_timezone(&Utc));
+            let existing = Timestamp::from_str(entry.get());
             if existing.is_err() {
                 // TODO: report error recovery
                 entry.insert(str);
@@ -95,21 +97,24 @@ pub fn try_set_pod_drain_timestamp(pod: &mut Pod, value: DateTime<Utc>) -> bool 
 
 pub const EVICT_AFTER_ANNOTATION_KEY: &str = "pod-graceful-drain/evict-after";
 
-pub fn get_pod_evict_after(pod: &Pod) -> Result<Option<DateTime<Utc>>, String> {
+pub fn get_pod_evict_after(pod: &Pod) -> Result<Option<Timestamp>, String> {
     let Some(str) = pod.annotations().get(EVICT_AFTER_ANNOTATION_KEY) else {
         return Ok(None);
     };
 
-    let result = DateTime::parse_from_rfc3339(str);
+    let result = Timestamp::from_str(str);
     match result {
-        Ok(datetime) => Ok(Some(datetime.with_timezone(&Utc))),
+        Ok(timestamp) => Ok(Some(timestamp)),
         Err(_) => Err(str.to_owned()),
     }
 }
 
-pub fn set_pod_evict_after(pod: &mut Pod, value: Option<DateTime<Utc>>) {
+pub fn set_pod_evict_after(pod: &mut Pod, value: Option<Timestamp>) {
     if let Some(value) = value {
-        let str = value.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let str = value
+            .round(Unit::Second)
+            .expect("round to second should success")
+            .to_string();
         pod.annotations_mut()
             .insert(String::from(EVICT_AFTER_ANNOTATION_KEY), str);
     } else if let Some(annotations) = &mut pod.metadata.annotations {
@@ -349,9 +354,7 @@ mod tests {
             }
         }));
         assert_matches!(result,
-            Ok(Some(datetime)) if datetime == DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc));
+            Ok(Some(datetime)) if datetime == Timestamp::from_str("2025-03-12T00:00:00Z").unwrap());
 
         let result = get_pod_drain_timestamp(&from_json!({
             "metadata": {
@@ -367,9 +370,7 @@ mod tests {
     fn test_set_pod_drain_timestamp() {
         {
             let mut pod = Pod::default();
-            let timestamp = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let timestamp = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
             assert!(
                 try_set_pod_drain_timestamp(&mut pod, timestamp),
                 "should set"
@@ -384,13 +385,9 @@ mod tests {
         {
             let mut pod = Pod::default();
 
-            let timestamp1 = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let timestamp1 = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
 
-            let timestamp2 = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let timestamp2 = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
 
             try_set_pod_drain_timestamp(&mut pod, timestamp1);
 
@@ -414,10 +411,7 @@ mod tests {
                 }
             }});
 
-            let timestamp = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
-
+            let timestamp = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
             assert!(
                 try_set_pod_drain_timestamp(&mut pod, timestamp),
                 "should recover from invalid timestamp"
@@ -443,10 +437,8 @@ mod tests {
             }
         }));
         assert_matches!(result,
-            Ok(Some(datetime)) if datetime == DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc));
-
+            Ok(Some(datetime)) if datetime == Timestamp::from_str("2025-03-12T00:00:00Z")
+                .unwrap());
         let result = get_pod_evict_after(&from_json!({
             "metadata": {
                 "annotations": {
@@ -461,9 +453,7 @@ mod tests {
     fn test_set_pod_evict_after() {
         {
             let mut pod = Pod::default();
-            let timestamp = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+            let timestamp = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
             set_pod_evict_after(&mut pod, Some(timestamp));
             assert_eq!(
                 get_pod_evict_after(&pod),
@@ -475,14 +465,8 @@ mod tests {
         {
             let mut pod = Pod::default();
 
-            let timestamp1 = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
-
-            let timestamp2 = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
-
+            let timestamp1 = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
+            let timestamp2 = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
             set_pod_evict_after(&mut pod, Some(timestamp1));
             set_pod_evict_after(&mut pod, Some(timestamp2));
 
@@ -496,10 +480,7 @@ mod tests {
         {
             let mut pod = Pod::default();
 
-            let timestamp = DateTime::parse_from_rfc3339("2025-03-12T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
-
+            let timestamp = Timestamp::from_str("2025-03-12T00:00:00Z").unwrap();
             set_pod_evict_after(&mut pod, Some(timestamp));
             set_pod_evict_after(&mut pod, None);
 

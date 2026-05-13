@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 use eyre::Result;
 use futures::StreamExt;
+use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use kube::runtime::controller::Action;
 use kube::runtime::events::{EventType, Recorder};
@@ -126,8 +126,9 @@ async fn reconcile(
         };
 
         // backoff eviction
-        if let Ok(remaining) = (evict_after - Utc::now()).to_std() {
-            return Ok(Action::requeue(remaining));
+        let remaining = Timestamp::now().duration_until(evict_after);
+        if remaining.is_positive() {
+            return Ok(Action::requeue(remaining.unsigned_abs()));
         }
     } else {
         // eviction label is missing or malformed. No load balancing.
@@ -147,7 +148,7 @@ async fn reconcile(
             Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
         }
         Err(DecreasePodDisruptionBudgetError::TooManyRequests(err)) => {
-            let now = Utc::now();
+            let now = Timestamp::now();
             let duration = Duration::from_secs(err.retry_after_seconds.max(1) as _);
             let evict_after = now + duration;
 

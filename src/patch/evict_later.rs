@@ -1,5 +1,5 @@
-use chrono::{DateTime, Timelike, Utc};
 use eyre::Result;
+use jiff::{Timestamp, Unit};
 use k8s_openapi::api::core::v1::Pod;
 use thiserror::Error;
 
@@ -25,7 +25,7 @@ pub enum PatchToEvictLaterError {
 
 pub async fn patch_to_evict_later(
     pod: &Pod,
-    timestamp: DateTime<Utc>,
+    timestamp: Timestamp,
     api_resolver: &ApiResolver,
     loadbalancing: &LoadBalancingConfig,
 ) -> Result<PatchToEvictOutcome, PatchToEvictLaterError> {
@@ -37,7 +37,7 @@ pub async fn patch_to_evict_later(
 
 fn mutate_to_evict_later(
     pod: Option<&Pod>,
-    evict_after: DateTime<Utc>,
+    evict_after: Timestamp,
     loadbalancing: &LoadBalancingConfig,
 ) -> Result<MutationOutcome<PatchToEvictOutcome, Pod>, PatchToEvictLaterError> {
     let Some(pod) = pod else {
@@ -45,8 +45,8 @@ fn mutate_to_evict_later(
     };
 
     let trimmed = evict_after
-        .with_nanosecond(0)
-        .expect("shouldn't panic since 'nano' < 2,000,000,000");
+        .round(Unit::Second)
+        .expect("round to second should succeed");
     let draining_state = get_pod_draining_label_value(pod);
     match draining_state {
         Ok(Some(DrainingLabelValue::Evicting)) => {
@@ -79,8 +79,8 @@ fn mutate_to_evict_later(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Utc};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
+    use std::str::FromStr;
 
     use super::*;
     use crate::from_json;
@@ -91,13 +91,9 @@ mod tests {
     fn smoke_test() {
         let pod: Pod = from_json!({});
 
-        let timestamp1 = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp1 = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
 
-        let timestamp2 = DateTime::parse_from_rfc3339("2025-03-14T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp2 = Timestamp::from_str("2025-03-14T00:00:00Z").unwrap();
 
         let loadbalancing1 = LoadBalancingConfig::with_str("instance-id-1");
         let loadbalancing2 = LoadBalancingConfig::with_str("instance-id-2");
@@ -131,9 +127,7 @@ mod tests {
 
     #[test]
     fn should_return_gone_if_pod_is_none() {
-        let timestamp = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
 
         let result = mutate_to_evict_later(None, timestamp, &loadbalancing);
@@ -148,13 +142,9 @@ mod tests {
     fn should_not_regress_timestamp() {
         let pod = from_json!({});
 
-        let timestamp1 = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp1 = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
 
-        let timestamp2 = DateTime::parse_from_rfc3339("2025-03-14T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp2 = Timestamp::from_str("2025-03-14T00:00:00Z").unwrap();
 
         let loadbalancing1 = LoadBalancingConfig::with_str("instance-id-1");
         let loadbalancing2 = LoadBalancingConfig::with_str("instance-id-2");
@@ -182,9 +172,7 @@ mod tests {
         let pod: Pod = from_json!({});
 
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
-        let timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let result = drain::mutate_to_drain(Some(&pod), timestamp, &loadbalancing, true);
         let Ok(MutationOutcome::RequirePatch(pod)) = result else {
             panic!("should patch pod");

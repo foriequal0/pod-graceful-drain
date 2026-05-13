@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use eyre::Result;
+use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use thiserror::Error;
 
@@ -18,7 +18,7 @@ pub enum PatchToDrainOutcome {
     /// pod is gone
     Gone,
     /// pod is draining
-    Draining { drain_timestamp: DateTime<Utc> },
+    Draining { drain_timestamp: Timestamp },
 }
 
 pub enum PatchToDrainCaller {
@@ -46,14 +46,19 @@ pub async fn patch_to_drain(
     };
 
     patch(api_resolver, pod, |pod| {
-        mutate_to_drain(pod, Utc::now(), loadbalancing, preserve_delete_options)
+        mutate_to_drain(
+            pod,
+            Timestamp::now(),
+            loadbalancing,
+            preserve_delete_options,
+        )
     })
     .await
 }
 
 pub(super) fn mutate_to_drain(
     pod: Option<&Pod>,
-    now: DateTime<Utc>,
+    now: Timestamp,
     loadbalancing: &LoadBalancingConfig,
     preserve_delete_options: bool,
 ) -> Result<MutationOutcome<PatchToDrainOutcome, Pod>, Bug> {
@@ -103,8 +108,8 @@ fn remove_owner_reference(pod: &mut Pod) {
 
 #[cfg(test)]
 mod tests {
-    use chrono::DateTime;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
+    use std::str::FromStr;
 
     use super::*;
     use crate::from_json;
@@ -112,9 +117,7 @@ mod tests {
 
     #[test]
     fn test_mutate_should_return_gone_if_pod_is_none() {
-        let drain_timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let drain_timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
 
         let result = mutate_to_drain(None, drain_timestamp, &loadbalancing, false);
@@ -147,9 +150,7 @@ mod tests {
             },
         });
 
-        let drain_timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let drain_timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
         let result = mutate_to_drain(Some(&pod), drain_timestamp, &loadbalancing, false);
 
@@ -180,9 +181,7 @@ mod tests {
 
     #[test]
     fn should_return_gone_if_pod_is_none() {
-        let drain_timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let drain_timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
         let result = mutate_to_drain(None, drain_timestamp, &loadbalancing, false);
 
@@ -202,9 +201,7 @@ mod tests {
             },
         });
 
-        let drain_timestamp1 = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let drain_timestamp1 = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
 
         let Ok(MutationOutcome::RequirePatch(patched_pod)) =
@@ -213,9 +210,7 @@ mod tests {
             panic!("Expected a patch");
         };
 
-        let drain_timestamp2 = DateTime::parse_from_rfc3339("2024-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let drain_timestamp2 = Timestamp::from_str("2024-02-08T15:30:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-2");
 
         let outcome2 = mutate_to_drain(Some(&patched_pod), drain_timestamp2, &loadbalancing, true);
@@ -236,9 +231,7 @@ mod tests {
             },
         });
 
-        let timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let loadbalancing1 = LoadBalancingConfig::with_str("instance-id-1");
         let Ok(MutationOutcome::RequirePatch(patched_pod)) = evict::mutate_to_evict(
             Some(&pod),

@@ -1,5 +1,5 @@
-use chrono::{DateTime, Utc};
 use eyre::Result;
+use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 
@@ -28,14 +28,14 @@ pub async fn patch_to_evict(
     delete_options: &DeleteOptions,
 ) -> Result<PatchToEvictOutcome> {
     patch(api_resolver, pod, |pod| {
-        mutate_to_evict(pod, Utc::now(), loadbalancing, delete_options)
+        mutate_to_evict(pod, Timestamp::now(), loadbalancing, delete_options)
     })
     .await
 }
 
 pub(super) fn mutate_to_evict(
     pod: Option<&Pod>,
-    timetstamp: DateTime<Utc>,
+    timestamp: Timestamp,
     loadbalancing: &LoadBalancingConfig,
     delete_options: &DeleteOptions,
 ) -> Result<MutationOutcome<PatchToEvictOutcome, Pod>> {
@@ -60,7 +60,7 @@ pub(super) fn mutate_to_evict(
 
     try_set_pod_draining_label_value(&mut pod, DrainingLabelValue::Evicting);
     set_pod_drain_controller(&mut pod, loadbalancing);
-    set_pod_evict_after(&mut pod, Some(timetstamp));
+    set_pod_evict_after(&mut pod, Some(timestamp));
     set_pod_delete_options(&mut pod, Some(delete_options))?;
 
     Ok(MutationOutcome::RequirePatch(pod))
@@ -68,7 +68,8 @@ pub(super) fn mutate_to_evict(
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Utc};
+    use std::str::FromStr;
+
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Preconditions;
 
     use super::*;
@@ -85,9 +86,7 @@ mod tests {
             }
         });
 
-        let timestamp = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
         let delete_options = DeleteOptions {
             dry_run: Some(vec!["All".to_owned()]),
@@ -121,9 +120,7 @@ mod tests {
 
     #[test]
     fn should_return_gone_if_pod_is_none() {
-        let timestamp = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
         let delete_options = DeleteOptions::default();
 
@@ -139,9 +136,7 @@ mod tests {
     fn should_be_idempotent() {
         let pod: Pod = from_json!({});
 
-        let timestamp = DateTime::parse_from_rfc3339("2025-03-13T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2025-03-13T00:00:00Z").unwrap();
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
         let delete_options = DeleteOptions::default();
         let result = mutate_to_evict(Some(&pod), timestamp, &loadbalancing, &delete_options);
@@ -167,9 +162,7 @@ mod tests {
         let pod: Pod = from_json!({});
 
         let loadbalancing = LoadBalancingConfig::with_str("instance-id-1");
-        let timestamp = DateTime::parse_from_rfc3339("2023-02-08T15:30:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let timestamp = Timestamp::from_str("2023-02-08T15:30:00Z").unwrap();
         let result = drain::mutate_to_drain(Some(&pod), timestamp, &loadbalancing, true);
         let Ok(MutationOutcome::RequirePatch(pod)) = result else {
             panic!("should patch pod");
