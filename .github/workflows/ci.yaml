@@ -12,27 +12,34 @@ jobs:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: rustfmt, clippy
+      - uses: actions/checkout@v6
+      - name: Setup Rust components
+        run: |
+          rustup component add clippy
       - name: cargo fetch
         run: cargo fetch --verbose
-      - name: cargo fmt
-        uses: actions-rust-lang/rustfmt@v1
-        if: always()
-      - name: cargo check
-        run: cargo check --all-features --all-targets
-        if: always()
+      - id: fmt
+        run: cargo fmt --check --all
+        continue-on-error: true
+      - id: check
+        run: cargo check --frozen --workspace
+        continue-on-error: true
       - id: clippy
-        run: cargo clippy --all-features --all-targets
-        if: always()
+        run: cargo clippy --frozen -- -D warnings
+        continue-on-error: true
+      - if: |
+          steps.fmt.outcome != 'success' ||
+          steps.check.outcome != 'success' ||
+          steps.clippy.outcome != 'success'
+        run: |
+          echo "Something failed"
+          exit 1
 
   check-python:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: eifinger/setup-rye@v4
         with:
           version: '0.43.0'
@@ -60,15 +67,18 @@ jobs:
     env:
       KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ""
       - name: Setup kind
         run: |
           kind create cluster --image="$KIND_IMAGE" --name test-pgd
+      - name: Install cargo-nextest
+        run: |
+          curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
       - run: cargo fetch --verbose
-      - run: cargo test --all-features
+      - run: cargo nextest run --all --frozen
         timeout-minutes: 10
 
   tests-result:
@@ -87,20 +97,20 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: helm lint charts/pod-graceful-drain --strict
 
   build-image:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           docker build --file docker/build.Dockerfile \
             --tag "localhost/pod-graceful-drain:latest" \
             .
       - run: docker image save --output pod-graceful-drain.tar localhost/pod-graceful-drain
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pod-graceful-drain.tar
           path: ./pod-graceful-drain.tar
@@ -126,11 +136,11 @@ jobs:
     needs:
       - build-image
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: eifinger/setup-rye@v4
         with:
           version: '0.43.0'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: pod-graceful-drain.tar
       - run: rye sync
