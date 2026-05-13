@@ -1,4 +1,4 @@
-FROM rust:1.86-slim-bookworm AS cache
+FROM rust:1.95-slim-trixie AS cache
 
 # prepare git cli
 RUN apt-get update && apt-get install -y git
@@ -21,7 +21,7 @@ FROM cache AS build
 COPY . /src/
 RUN cargo build
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 WORKDIR /app
 COPY --from=build /src/target/debug/pod-graceful-drain /app/pod-graceful-drain
 ENTRYPOINT ["/app/pod-graceful-drain"]
