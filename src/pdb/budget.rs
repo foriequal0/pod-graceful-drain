@@ -1,9 +1,7 @@
 use std::convert::Into;
 use std::fmt::Display;
-use std::sync::Arc;
 
 use eyre::Result;
-use genawaiter::{rc::r#gen, yield_};
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
 use k8s_openapi::api::core::v1::Pod;
@@ -16,8 +14,8 @@ use thiserror::Error;
 
 use crate::error_codes::is_404_not_found_error;
 use crate::error_types::{Bug, NotMyFault};
+use crate::pdb::get_pdb_for;
 use crate::pod_state::is_pod_ready;
-use crate::selector::matches_selector;
 use crate::{ApiResolver, Stores, try_some};
 
 #[derive(Debug, Error)]
@@ -67,7 +65,7 @@ pub async fn decrease_pod_disruption_budget(
         source: None,
     })?;
 
-    let Some(pdb) = get_pdb(stores, pod)? else {
+    let Some(pdb) = get_pdb_for(stores, pod)? else {
         // no pdb, so allowed to disrupt
         return Ok(());
     };
@@ -102,32 +100,6 @@ pub async fn decrease_pod_disruption_budget(
         }
         Err(err) => Err(err.into()),
     }
-}
-
-fn get_pdb(stores: &Stores, pod: &Pod) -> Result<Option<Arc<PodDisruptionBudget>>, NotMyFault> {
-    let pod_disruption_budgets = r#gen!({
-        let pod_namespace = pod.metadata.namespace.as_deref().unwrap_or("default");
-        for pdb in stores.pod_disruption_budgets(pod_namespace) {
-            if matches_selector(pod, try_some!(pdb.spec?.selector?)) {
-                yield_!(pdb);
-            }
-        }
-    });
-
-    let pdbs: Vec<_> = pod_disruption_budgets.into_iter().collect();
-    if pdbs.is_empty() {
-        return Ok(None);
-    }
-
-    if pdbs.len() > 1 {
-        return Err(NotMyFault {
-            message: String::from("does not support more than one pod disruption budget"),
-            source: None,
-        });
-    }
-
-    let pdb = pdbs[0].clone();
-    Ok(Some(pdb))
 }
 
 #[derive(Debug)]
@@ -441,7 +413,7 @@ mod tests {
             },
         });
 
-        let result = get_pdb(&stores, &pod);
+        let result = get_pdb_for(&stores, &pod);
         assert_matches!(result, Ok(Some(pdb)) if pdb.as_ref() == &pdb1);
     }
 

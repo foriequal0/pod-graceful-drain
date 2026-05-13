@@ -25,7 +25,9 @@ use crate::labels_and_annotations::{
 use crate::loadbalancing::LoadBalancingConfig;
 use crate::patch::drain::{PatchToDrainCaller, PatchToDrainError, patch_to_drain};
 use crate::patch::evict_later::{PatchToEvictLaterError, patch_to_evict_later};
-use crate::pod_disruption_budget::{
+use crate::pdb::fixup::force_trigger_sync;
+use crate::pdb::get_pdbs_for;
+use crate::pdb::budget::{
     DecreasePodDisruptionBudgetError, decrease_pod_disruption_budget,
 };
 use crate::report::report;
@@ -137,6 +139,8 @@ async fn reconcile(
 
     match decrease_pod_disruption_budget(&pod, &context.stores, &context.api_resolver).await {
         Ok(()) => {
+            let pdbs = get_pdbs_for(&context.stores, &pod);
+
             patch_to_drain(
                 &pod,
                 &context.api_resolver,
@@ -144,6 +148,10 @@ async fn reconcile(
                 PatchToDrainCaller::Controller,
             )
             .await?;
+
+            for pdb in pdbs {
+                _ = force_trigger_sync(pdb.as_ref(), &context.api_resolver).await;
+            }
 
             Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
         }

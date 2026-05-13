@@ -16,7 +16,7 @@ rules:
     verbs: [ create ]
   - apiGroups: [ policy ]
     resources: [ poddisruptionbudgets ]
-    verbs: [ get, list, watch ]
+    verbs: [ get, list, watch, patch ]
   - apiGroups: [ policy ]
     resources: [ poddisruptionbudgets/status ]
     verbs: [ update ]

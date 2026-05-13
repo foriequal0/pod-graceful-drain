@@ -6,6 +6,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
 use k8s_openapi::api::networking::v1::Ingress;
+use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use kube::api::{ListParams, ObjectList};
 use kube::runtime::events::{Recorder, Reporter};
 
@@ -153,6 +154,19 @@ spec:
         path: /"#
         );
 
+        apply_yaml!(
+            &context,
+            PodDisruptionBudget,
+            r#"
+metadata:
+  name: some-pod
+spec:
+  selector:
+    matchLabels:
+      app: test
+  minAvailable: 0"# // maxUnavailable works when there is controller for the pod
+        );
+
         kubectl!(
             &context,
             [
@@ -161,6 +175,15 @@ spec:
                 "--for=condition=Ready",
                 "--timeout=1m"
             ]
+        );
+
+        assert!(
+            eventually!({
+                let pdb: PodDisruptionBudget =
+                    context.api_resolver.all().get("some-pod").await.unwrap();
+                pdb.status.unwrap().current_healthy == 1
+            }),
+            "pdb.status.currentHealthy should not be 0 yet",
         );
 
         let context = Arc::new(context);
@@ -185,6 +208,15 @@ spec:
         assert!(
             is_pod_patched(&context, "some-pod", DrainingLabelValue::Draining).await,
             "pod should've been patched"
+        );
+
+        assert!(
+            eventually!({
+                let pdb: PodDisruptionBudget =
+                    context.api_resolver.all().get("some-pod").await.unwrap();
+                pdb.status.unwrap().current_healthy == 0
+            }),
+            "pdb.status.currentHealthy is correctly set to 0",
         );
 
         assert!(

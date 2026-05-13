@@ -11,7 +11,9 @@ use crate::tests::utils::context::{TestContext, within_test_namespace};
 use crate::tests::utils::event_tracker::EventTracker;
 use crate::tests::utils::operations::install_test_host_service;
 use crate::tests::utils::pod_state::{is_pod_patched, is_pod_patched_in};
-use crate::{CONTROLLER_NAME, Config, ServiceRegistry, apply_yaml, kubectl, start_reflectors};
+use crate::{
+    CONTROLLER_NAME, Config, ServiceRegistry, apply_yaml, eventually, kubectl, start_reflectors,
+};
 
 async fn setup(context: &TestContext) {
     install_test_host_service(context).await;
@@ -145,6 +147,15 @@ spec:
             "pod should be in evicting state"
         );
 
+        assert!(
+            eventually!({
+                let pdb: PodDisruptionBudget =
+                    context.api_resolver.all().get("some-pod").await.unwrap();
+                pdb.status.unwrap().current_healthy == 1
+            }),
+            "pdb.status.currentHealthy should not be 0 yet",
+        );
+
         apply_yaml!(
             &context,
             PodDisruptionBudget,
@@ -161,6 +172,15 @@ spec:
         assert!(
             is_pod_patched_in(&context, "some-pod", 5, DrainingLabelValue::Draining).await,
             "pod should've been patched"
+        );
+
+        assert!(
+            eventually!({
+                let pdb: PodDisruptionBudget =
+                    context.api_resolver.all().get("some-pod").await.unwrap();
+                pdb.status.unwrap().current_healthy == 0
+            }),
+            "pdb.status.currentHealthy is correctly decreased",
         );
     })
     .await;
