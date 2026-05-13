@@ -35,7 +35,10 @@ pub async fn report(
     };
 
     // ignore the error of diagnostic events
-    let _ = recorder.publish(&event, reference).await;
+    let result = recorder.publish(&event, reference).await;
+    if let Err(err) = result {
+        warn!("failed to publish diagnostic event: {}", err);
+    }
 }
 
 pub async fn debug_report_for_ref<K>(
