@@ -11,7 +11,6 @@ use kube::api::PostParams;
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Resource};
 use thiserror::Error;
-use tracing::error;
 
 use crate::error_codes::is_404_not_found_error;
 use crate::error_types::{Bug, NotMyFault};
@@ -159,10 +158,11 @@ fn check_pod_disruption_policy(
         }
         Some(unhealthy_pod_eviction_policy_type::IF_HEALTHY_BUDGET) => {
             // unhealthy pod can be disrupted when healthy budget allows
-            if let Some(status) = pdb.status.as_ref() {
-                if status.current_healthy >= status.desired_healthy && status.desired_healthy > 0 {
-                    return Ok(PodDisruptionPolicyResult::Evict);
-                }
+            if let Some(status) = pdb.status.as_ref()
+                && status.current_healthy >= status.desired_healthy
+                && status.desired_healthy > 0
+            {
+                return Ok(PodDisruptionPolicyResult::Evict);
             };
 
             Ok(PodDisruptionPolicyResult::EvictIfBudgetAllows)

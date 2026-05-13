@@ -31,7 +31,7 @@ pub async fn build_reactive_rustls_config(
             Ok(rustls_config)
         }
         CertConfig::Override(cert, key) => {
-            let serialized = Der::new_with(&[cert.clone()], key);
+            let serialized = Der::new_with(std::slice::from_ref(cert), key);
             let config = RustlsConfig::from_der(serialized.certs, serialized.key).await?;
             Ok(config)
         }

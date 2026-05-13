@@ -50,12 +50,12 @@ fn mutate_to_evict_later(
     let draining_state = get_pod_draining_label_value(pod);
     match draining_state {
         Ok(Some(DrainingLabelValue::Evicting)) => {
-            if let Ok(Some(existing_evict_after)) = get_pod_evict_after(pod) {
-                if existing_evict_after >= trimmed {
-                    return Ok(MutationOutcome::DesiredState(
-                        PatchToEvictOutcome::WaitingForPodDisruptionBudget,
-                    ));
-                }
+            if let Ok(Some(existing_evict_after)) = get_pod_evict_after(pod)
+                && existing_evict_after >= trimmed
+            {
+                return Ok(MutationOutcome::DesiredState(
+                    PatchToEvictOutcome::WaitingForPodDisruptionBudget,
+                ));
             }
 
             let mut pod = pod.clone();

@@ -41,12 +41,12 @@ where
                 *resp.status_mut() =
                     StatusCode::try_from(status.code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-                if let Some(details) = &status.details {
-                    if details.retry_after_seconds > 0 {
-                        let name = HeaderName::from_static("retry-after");
-                        let value = HeaderValue::from(details.retry_after_seconds);
-                        resp.headers_mut().insert(name, value);
-                    }
+                if let Some(details) = &status.details
+                    && details.retry_after_seconds > 0
+                {
+                    let name = HeaderName::from_static("retry-after");
+                    let value = HeaderValue::from(details.retry_after_seconds);
+                    resp.headers_mut().insert(name, value);
                 }
 
                 resp
@@ -172,7 +172,7 @@ where
         chain = err.source();
     }
 
-    let status = Status {
+    Status {
         code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
         status: Some(StatusSummary::Failure),
         reason: String::from("InternalError"),
@@ -185,7 +185,5 @@ where
             causes,
             retry_after_seconds: 0,
         }),
-    };
-
-    status
+    }
 }

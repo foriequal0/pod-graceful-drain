@@ -12,7 +12,7 @@ use kube::runtime::reflector::ObjectRef;
 use kube::runtime::{Controller, controller, watcher};
 use kube::{Api, ResourceExt};
 use thiserror::Error;
-use tracing::{Level, debug, error, info, span, warn};
+use tracing::{Level, debug, info, span, warn};
 
 use crate::api_resolver::ApiResolver;
 use crate::controllers::utils::{
