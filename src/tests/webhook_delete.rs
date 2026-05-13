@@ -1,9 +1,6 @@
-use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use base64::Engine;
-use eyre::{ContextCompat, Result};
 use k8s_openapi::api::admissionregistration::v1::ValidatingWebhookConfiguration;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Pod, Service};
@@ -11,8 +8,6 @@ use k8s_openapi::api::discovery::v1::EndpointSlice;
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::api::{ListParams, ObjectList};
 use kube::runtime::events::{Recorder, Reporter};
-use rcgen::generate_simple_self_signed;
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 use crate::labels_and_annotations::DrainingLabelValue;
 use crate::tests::utils::context::{TestContext, within_test_cluster, within_test_namespace};
@@ -21,31 +16,16 @@ use crate::tests::utils::operations::install_test_host_service;
 use crate::tests::utils::pod_state::{
     is_pod_patched, pod_is_alive, pod_is_alive_for, pod_is_deleted_within,
 };
+use crate::tests::utils::self_signed_cert;
 use crate::{
     CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
     apply_yaml, kubectl, start_reflectors, start_webhook,
 };
 
-async fn generate_self_signed_cert(
-    subject: String,
-) -> Result<(String, CertificateDer<'static>, PrivateKeyDer<'static>)> {
-    let cert_key = generate_simple_self_signed(vec![subject])?;
-
-    let ca_bundle = base64::engine::general_purpose::STANDARD.encode(cert_key.cert.pem());
-    let cert = cert_key.cert.der().clone();
-    let private_key = {
-        let pem = cert_key.key_pair.serialize_pem();
-        let mut cursor = Cursor::new(pem.as_bytes());
-        rustls_pemfile::private_key(&mut cursor)?.context("private key")?
-    };
-
-    Ok((ca_bundle, cert, private_key))
-}
-
 async fn setup(context: &TestContext, config: Config) {
     let namespace = &context.namespace;
     let service_domain = install_test_host_service(context).await;
-    let (ca_bundle, cert, key_pair) = generate_self_signed_cert(service_domain).await.unwrap();
+    let cert = self_signed_cert::generate(service_domain).await.unwrap();
     let service_registry = ServiceRegistry::default();
     let downward_api = DownwardAPI::default();
     let loadbalancing = LoadBalancingConfig::with_str("test");
@@ -68,7 +48,7 @@ async fn setup(context: &TestContext, config: Config) {
     let port = start_webhook(
         &context.api_resolver,
         config,
-        WebhookConfig::random_port_for_test(cert, key_pair),
+        WebhookConfig::random_port_for_test(cert.cert, cert.key_pair),
         stores,
         &service_registry,
         &loadbalancing,
@@ -107,6 +87,7 @@ webhooks:
     namespaceSelector:
       matchLabels:
         name: {namespace}"#,
+        ca_bundle = cert.ca_bundle,
     );
 }
 

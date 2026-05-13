@@ -4,3 +4,4 @@ pub mod macros;
 pub mod operations;
 pub mod pod_state;
 mod run_command;
+pub mod self_signed_cert;
