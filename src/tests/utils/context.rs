@@ -23,7 +23,7 @@ use crate::tests::utils::run_command::{
 };
 use crate::{ApiResolver, LoadBalancingConfig, Shutdown};
 
-const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.32.0";
+const DEFAULT_KIND_IMAGE: &str = "kindest/node:v1.35.1";
 const DEFAULT_TEST_CLUSTER_NAME: &str = "test-pgd";
 const TEST_NAMESPACE_PREFIX: &str = "test";
 const TEST_NAMESPACE_LABEL_KEY: &str = "test-pgd-ns";
