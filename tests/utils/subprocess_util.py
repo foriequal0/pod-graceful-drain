@@ -2,7 +2,7 @@ from subprocess import CompletedProcess
 
 
 def print_command(args):
-    print(f"> {" ".join(args)}")
+    print(f"> {' '.join(args)}")
 
 
 def to_bytes(s):

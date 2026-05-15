@@ -140,19 +140,19 @@ spec:
         kubectl_nowait(kubectl_ctx, "delete", "pod/some-pod")
 
         time.sleep(1)  # give some time to process
-        assert (
-            pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true"
-        ), "pod is annotated"
+        assert pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true", (
+            "pod is annotated"
+        )
         for secs in range(0, 20 - 5):
-            assert pod_is_alive(
-                kubectl_ctx, "pod/some-pod"
-            ), f"pod should be alive for approx. 20s, but died in {secs}s"
+            assert pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+                f"pod should be alive for approx. 20s, but died in {secs}s"
+            )
             time.sleep(1)
 
         time.sleep(10)
-        assert not pod_is_alive(
-            kubectl_ctx, "pod/some-pod"
-        ), "pod should be dead by now"
+        assert not pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+            "pod should be dead by now"
+        )
 
 
 def test_eviction_is_delayed_with_ingress(tmp_path: Path):
@@ -227,19 +227,19 @@ spec:
         )
 
         time.sleep(1)  # give some time to process
-        assert (
-            pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true"
-        ), "pod is annotated"
+        assert pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true", (
+            "pod is annotated"
+        )
         for secs in range(0, 20 - 5):
-            assert pod_is_alive(
-                kubectl_ctx, "pod/some-pod"
-            ), f"pod should be alive for approx. 20s, but died in {secs}s"
+            assert pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+                f"pod should be alive for approx. 20s, but died in {secs}s"
+            )
             time.sleep(1)
 
         time.sleep(10)
-        assert not pod_is_alive(
-            kubectl_ctx, "pod/some-pod"
-        ), "pod should be dead by now"
+        assert not pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+            "pod should be dead by now"
+        )
 
 
 def test_eviction_is_further_delayed_with_pdb(tmp_path: Path):
@@ -329,9 +329,9 @@ spec:
 
         for secs in range(0, 5):
             time.sleep(1)
-            assert (
-                pod_is_annotated(kubectl_ctx, "pod/some-pod") == "evicting"
-            ), "pod should be in waiting state"
+            assert pod_is_annotated(kubectl_ctx, "pod/some-pod") == "evicting", (
+                "pod should be in waiting state"
+            )
 
         kubectl_stdin(
             kubectl_ctx,
@@ -352,17 +352,17 @@ spec:
         )
 
         time.sleep(3)  # give some time to process
-        assert (
-            pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true"
-        ), "pod is draining"
+        assert pod_is_annotated(kubectl_ctx, "pod/some-pod") == "true", (
+            "pod is draining"
+        )
 
         for secs in range(0, 20 - 5):
-            assert pod_is_alive(
-                kubectl_ctx, "pod/some-pod"
-            ), f"pod should be alive for approx. 20s, but died in {secs}s"
+            assert pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+                f"pod should be alive for approx. 20s, but died in {secs}s"
+            )
             time.sleep(1)
 
         time.sleep(10)
-        assert not pod_is_alive(
-            kubectl_ctx, "pod/some-pod"
-        ), "pod should be dead by now"
+        assert not pod_is_alive(kubectl_ctx, "pod/some-pod"), (
+            "pod should be dead by now"
+        )

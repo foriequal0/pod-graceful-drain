@@ -195,9 +195,9 @@ spec:
         time.sleep(1)
         assert pod_is_annotated(kubectl_ctx, "pod/some-pod"), "pod should be annotated"
 
-        assert pod_is_alive_for(
-            kubectl_ctx, "pod/some-pod", 20 - 5
-        ), "pod should be alive for at least. 20s"
+        assert pod_is_alive_for(kubectl_ctx, "pod/some-pod", 20 - 5), (
+            "pod should be alive for at least. 20s"
+        )
 
         assert not pod_is_alive_for(
             kubectl_ctx,
