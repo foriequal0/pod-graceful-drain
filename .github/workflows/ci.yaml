@@ -32,8 +32,14 @@ jobs:
           steps.check.outcome != 'success' ||
           steps.clippy.outcome != 'success'
         run: |
-          echo "Something failed"
+          echo "fmt:" "$OUTCOME_FMT";
+          echo "check:" "$OUTCOME_CHECK";
+          echo "clippy:" "$OUTCOME_CLIPPY";
           exit 1
+        env:
+          OUTCOME_FMT: ${{steps.fmt.outcome}}
+          OUTCOME_CHECK: ${{steps.check.outcome}}
+          OUTCOME_CLIPPY: ${{steps.clippy.outcome}}
 
   check-python:
     timeout-minutes: 3
