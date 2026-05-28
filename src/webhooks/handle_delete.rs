@@ -1,10 +1,5 @@
 use std::time::Duration;
 
-use eyre::{Context, Result, eyre};
-use jiff::Timestamp;
-use k8s_openapi::api::core::v1::Pod;
-use kube::core::admission::AdmissionRequest;
-
 use crate::labels_and_annotations::{
     DrainingLabelValue, get_pod_drain_timestamp, get_pod_draining_label_value,
 };
@@ -12,9 +7,14 @@ use crate::patch::drain::{PatchToDrainCaller, PatchToDrainOutcome, patch_to_drai
 use crate::pdb::fixup::force_trigger_sync;
 use crate::pdb::get_pdbs_for;
 use crate::pod_state::{is_pod_exposed, is_pod_ready, is_pod_running};
-use crate::report::{debug_report_for, report_for};
+use crate::report::{debug_report_for, report_for, warn_report_for_ref};
 use crate::webhooks::AppState;
 use crate::webhooks::handle_common::InterceptResult;
+use eyre::{Context, Result, eyre};
+use jiff::Timestamp;
+use k8s_openapi::api::core::v1::Pod;
+use kube::core::admission::AdmissionRequest;
+use kube::runtime::reflector::Lookup;
 
 /// This handler delays the admission of DELETE Pod request.
 ///
@@ -120,7 +120,15 @@ pub async fn handle_delete(
             };
 
             for pdb in pdbs {
-                _ = force_trigger_sync(pdb.as_ref(), &state.api_resolver).await;
+                if let Err(err) = force_trigger_sync(pdb.as_ref(), &state.api_resolver).await {
+                    warn_report_for_ref(
+                        &state.recorder,
+                        &pdb.to_object_ref(()),
+                        "ForceTriggerSyncOnDrain",
+                        "Err",
+                        err.to_string(),
+                    ).await;
+                }
             }
 
             report_for(

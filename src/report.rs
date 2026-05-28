@@ -105,6 +105,33 @@ pub async fn err_report_for_ref<K>(
     .await;
 }
 
+pub async fn warn_report_for_ref<K>(
+    recorder: &Recorder,
+    object_ref: &ObjectRef<K>,
+    action: &str,
+    reason: &str,
+    note: String,
+) where
+    K: Resource,
+    K::DynamicType: Clone,
+{
+    if !event_enabled!(Level::WARN) {
+        return;
+    }
+
+    let object_reference = ObjectReference::from(object_ref.clone());
+    warn!(action, reason, note);
+    report(
+        recorder,
+        &object_reference,
+        EventType::Warning,
+        action,
+        reason,
+        note,
+    )
+    .await;
+}
+
 pub async fn warn_report_for(
     recorder: &Recorder,
     pod: &Pod,
@@ -112,20 +139,7 @@ pub async fn warn_report_for(
     reason: &str,
     note: String,
 ) {
-    if !event_enabled!(Level::WARN) {
-        return;
-    }
-
-    warn!(action, reason, note);
-    report(
-        recorder,
-        &pod.object_ref(&()),
-        EventType::Warning,
-        action,
-        reason,
-        note,
-    )
-    .await;
+    warn_report_for_ref(recorder, &pod.to_object_ref(()), action, reason, note).await;
 }
 
 pub async fn report_for_ref<K>(
