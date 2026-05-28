@@ -19,7 +19,7 @@ pub enum ForceTriggerSyncError {
 }
 
 /// ISSUE: https://github.com/foriequal0/pod-graceful-drain/issues/7#issuecomment-4202371201
-/// Kubernetes' PDB controller doesn't update PDB if pod's labels are no more selected by the selector
+/// Kubernetes' PDB controller doesn't update PDB if pod's labels are no longer selected by the selector
 /// REF: https://github.com/kubernetes/kubernetes/blob/23be9587a0f8677eb8091464098881df939c44a9/pkg/controller/disruption/disruption.go#L336-L346
 /// So attach an annotation to the PDB to forcefully trigger sync.
 /// (the PDB controller updates the PDB when it is modified)

@@ -72,7 +72,7 @@ spec:
 }
 
 #[tokio::test]
-async fn check_stock_kubernetes_delete_dont_updates_current_healthy_on_label_remove() {
+async fn check_stock_kubernetes_delete_does_not_updates_current_healthy_on_label_remove() {
     within_test_namespace(|context| async move {
         apply_yaml!(
             &context,
