@@ -41,7 +41,8 @@ where
 {
     let mut patcher = ResourcePatchUtil::new(api_resolver, res);
     loop {
-        let outcome = get_desired_state_or_mutated_res(patcher.get())?;
+        let res = patcher.get();
+        let outcome = get_desired_state_or_mutated_res(res)?;
 
         match outcome {
             MutationOutcome::DesiredState(desired) => {

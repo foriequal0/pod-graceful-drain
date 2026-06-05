@@ -7,7 +7,7 @@ mod error_codes;
 mod labels_and_annotations;
 mod loadbalancing;
 mod patch;
-mod pod_disruption_budget;
+mod pdb;
 mod pod_state;
 mod reflector;
 mod selector;

@@ -7,7 +7,7 @@ use jiff::Timestamp;
 use k8s_openapi::api::core::v1::Pod;
 use kube::runtime::controller::Action;
 use kube::runtime::events::{EventType, Recorder};
-use kube::runtime::reflector::ObjectRef;
+use kube::runtime::reflector::{Lookup, ObjectRef};
 use kube::runtime::{Controller, controller, watcher};
 use kube::{Api, Resource};
 use thiserror::Error;
@@ -25,10 +25,10 @@ use crate::labels_and_annotations::{
 use crate::loadbalancing::LoadBalancingConfig;
 use crate::patch::drain::{PatchToDrainCaller, PatchToDrainError, patch_to_drain};
 use crate::patch::evict_later::{PatchToEvictLaterError, patch_to_evict_later};
-use crate::pod_disruption_budget::{
-    DecreasePodDisruptionBudgetError, decrease_pod_disruption_budget,
-};
-use crate::report::report;
+use crate::pdb::budget::{DecreasePodDisruptionBudgetError, decrease_pod_disruption_budget};
+use crate::pdb::fixup::force_trigger_sync;
+use crate::pdb::get_pdbs_for;
+use crate::report::{report, warn_report_for_ref};
 use crate::shutdown::Shutdown;
 use crate::spawn_service::spawn_service;
 use crate::{ServiceRegistry, Stores};
@@ -137,6 +137,8 @@ async fn reconcile(
 
     match decrease_pod_disruption_budget(&pod, &context.stores, &context.api_resolver).await {
         Ok(()) => {
+            let pdbs = get_pdbs_for(&context.stores, &pod);
+
             patch_to_drain(
                 &pod,
                 &context.api_resolver,
@@ -144,6 +146,19 @@ async fn reconcile(
                 PatchToDrainCaller::Controller,
             )
             .await?;
+
+            for pdb in pdbs {
+                if let Err(err) = force_trigger_sync(pdb.as_ref(), &context.api_resolver).await {
+                    warn_report_for_ref(
+                        &context.recorder,
+                        &pdb.to_object_ref(()),
+                        "ForceTriggerSyncOnEvict",
+                        "Err",
+                        err.to_string(),
+                    )
+                    .await;
+                }
+            }
 
             Ok(Action::requeue(DEFAULT_RECONCILE_DURATION))
         }
