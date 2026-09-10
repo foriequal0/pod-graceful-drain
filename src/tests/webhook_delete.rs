@@ -328,7 +328,7 @@ spec:
             [
                 "wait",
                 "pod/some-pod",
-                "--for=jsonpath={.status.phase}=Running'",
+                "--for=jsonpath={.status.phase}=Running",
                 "--timeout=1m"
             ]
         );
