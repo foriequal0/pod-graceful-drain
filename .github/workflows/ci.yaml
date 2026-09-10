@@ -83,6 +83,9 @@ jobs:
           # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
           sudo sysctl fs.inotify.max_user_watches=524288
           sudo sysctl fs.inotify.max_user_instances=512
+          
+          # it's easier to use podman rather than configuring `--add-host=host.docker.internal:host-gateway` for kind cluster.
+          echo "KIND_EXPERIMENTAL_PROVIDER=podman" >> $GITHUB_ENV
       - name: Setup kind
         run: |
           kind create cluster --image="$KIND_IMAGE" --name test-pgd
