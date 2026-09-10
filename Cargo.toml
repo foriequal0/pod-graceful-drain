@@ -46,7 +46,6 @@ uuid = { version = "1.23.1", features = ["v4"] }
 [dev-dependencies]
 tempfile = "3.27.0"
 serde_yaml = "0.9.34-deprecated"
-local-ip-address = "0.6.12"
 base64 = "0.22.1"
 rcgen = "0.14.8"
 assert_matches = "1.5.0"
