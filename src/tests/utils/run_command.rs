@@ -22,12 +22,12 @@ impl Display for CommandParams<'_> {
             f.write_char(' ')?;
             append(arg, f)?;
         }
-        if let Some(stdin) = self.stdin.as_ref() {
-            if let Ok(str) = std::str::from_utf8(stdin) {
-                f.write_str(" <<EOF\n")?;
-                f.write_str(str)?;
-                f.write_str("EOF")?;
-            }
+        if let Some(stdin) = self.stdin.as_ref()
+            && let Ok(str) = std::str::from_utf8(stdin)
+        {
+            f.write_str(" <<EOF\n")?;
+            f.write_str(str)?;
+            f.write_str("EOF")?;
         }
 
         return Ok(());
@@ -37,8 +37,9 @@ impl Display for CommandParams<'_> {
                 f.write_char('\'')?;
                 for c in str.chars() {
                     if c == '\'' {
-                        f.write_str("'\''")?;
+                        f.write_char('\\')?;
                     }
+                    f.write_char(c)?;
                 }
                 f.write_char('\'')?;
             } else {
