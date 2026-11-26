@@ -13,6 +13,7 @@ use crate::tests::utils::operations::install_test_host_service;
 use crate::tests::utils::pod_state::{is_pod_patched, is_pod_patched_in};
 use crate::{
     CONTROLLER_NAME, Config, ServiceRegistry, apply_yaml, eventually, kubectl, start_reflectors,
+    try_some,
 };
 
 async fn setup(context: &TestContext) {
@@ -151,7 +152,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             }),
             "pdb.status.currentHealthy should not be 0 yet",
         );
@@ -178,7 +179,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 0
+                try_some!(pdb.status?.current_healthy?) == Some(&0)
             }),
             "pdb.status.currentHealthy is correctly decreased",
         );

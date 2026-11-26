@@ -50,7 +50,7 @@ fn get_stable_jitter_impl(
 
 pub fn log_reconcile_result_common<E>(
     result: Result<(ObjectRef<Pod>, Action), controller::Error<E, watcher::Error>>,
-    reconciler_failed_handler: impl Fn(E, ObjectRef<DynamicObject>),
+    reconciler_failed_handler: impl Fn(E, &ObjectRef<DynamicObject>),
 ) where
     E: Debug,
 {
@@ -59,7 +59,7 @@ pub fn log_reconcile_result_common<E>(
             trace!(%object_ref, ?action, "apply");
         }
         Err(controller::Error::ReconcilerFailed(reconciler_err, object_ref)) => {
-            reconciler_failed_handler(reconciler_err, object_ref);
+            reconciler_failed_handler(reconciler_err, &object_ref);
         }
         Err(controller::Error::QueueError(queue_err)) => {
             match queue_err {

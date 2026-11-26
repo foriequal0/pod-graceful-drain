@@ -2,6 +2,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::DeleteOptions;
 use kube::Resource;
 use kube::api::{DeleteParams, Preconditions, PropagationPolicy};
 use kube::runtime::reflector::ObjectRef;
+use std::ops::Deref;
 
 pub fn get_object_ref_from_name<K: Resource>(
     name: impl AsRef<str>,
@@ -148,6 +149,24 @@ macro_rules! pub_if_test {
         #[cfg(not(test))]
         $($tt)*;
     };
+}
+
+/// to track the usages
+pub fn unwrap_or_default<T>(value: Option<T>) -> T
+where
+    T: Default,
+{
+    value.unwrap_or_default()
+}
+
+/// to track the usages
+#[allow(unused)]
+pub fn unwrap_or_default_deref<T>(value: &Option<T>) -> &<T as Deref>::Target
+where
+    T: Deref,
+    for<'a> &'a <T as Deref>::Target: Default,
+{
+    value.as_deref().unwrap_or_default()
 }
 
 #[cfg(test)]
