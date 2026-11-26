@@ -22,10 +22,10 @@ jobs:
         run: cargo fmt --check --all
         continue-on-error: true
       - id: check
-        run: cargo check --frozen --workspace
+        run: cargo check --frozen --workspace --all-targets
         continue-on-error: true
       - id: clippy
-        run: cargo clippy --frozen -- -D warnings
+        run: cargo clippy --frozen --workspace --all-targets -- -D warnings
         continue-on-error: true
       - if: |
           steps.fmt.outcome != 'success' ||

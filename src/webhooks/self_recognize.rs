@@ -32,11 +32,7 @@ pub fn is_my_serviceaccount(downward_api: &DownwardAPI, user_info: &UserInfo) ->
     }
 
     let namespace_group = format!("system:serviceaccounts:{namespace}");
-    if !groups.iter().any(|group| group == &namespace_group) {
-        return false;
-    }
-
-    true
+    groups.iter().any(|group| group == &namespace_group)
 }
 
 #[cfg(test)]

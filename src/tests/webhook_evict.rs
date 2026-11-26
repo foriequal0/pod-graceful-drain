@@ -453,7 +453,7 @@ spec:
                         "drain",
                         "--force",
                         "--ignore-daemonsets",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
             }
@@ -478,7 +478,7 @@ spec:
                         "drain",
                         "--force",
                         "--ignore-daemonsets",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
             }

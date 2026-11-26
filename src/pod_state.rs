@@ -24,11 +24,7 @@ pub fn is_pod_running(pod: &Pod) -> bool {
         return false;
     }
 
-    if pod.meta().deletion_timestamp.is_some() {
-        return false;
-    }
-
-    true
+    !pod.meta().deletion_timestamp.is_some()
 }
 
 pub fn is_pod_ready(pod: &Pod) -> bool {

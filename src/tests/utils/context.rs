@@ -59,7 +59,7 @@ impl TestContext {
 
 pub async fn within_test_namespace<F, Fut>(f: F) -> Fut::Output
 where
-    F: for<'a> FnOnce(TestContext) -> Fut + Send + 'static,
+    F: FnOnce(TestContext) -> Fut + Send + 'static,
     Fut: Future + Send,
     Fut::Output: Send + 'static,
 {
@@ -76,7 +76,7 @@ where
 
 pub async fn within_test_cluster<F, Fut>(f: F) -> Fut::Output
 where
-    F: for<'a> FnOnce(TestContext) -> Fut + Send + 'static,
+    F: FnOnce(TestContext) -> Fut + Send + 'static,
     Fut: Future + Send,
     Fut::Output: Send + 'static,
 {
@@ -145,7 +145,7 @@ async fn within_random_namespace_with_cluster<F, Fut>(
     f: F,
 ) -> Result<Fut::Output, JoinError>
 where
-    F: for<'a> FnOnce(TestContext) -> Fut + Send + 'static,
+    F: FnOnce(TestContext) -> Fut + Send + 'static,
     Fut: Future + Send,
     Fut::Output: Send + 'static,
 {
