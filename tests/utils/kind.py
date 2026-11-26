@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .subprocess_util import handle_error, print_command, to_bytes
 
-DEFAULT_KIND_IMAGE = "kindest/node:v1.32.0"
+DEFAULT_KIND_IMAGE = "kindest/node:v1.37.0"
 KIND_IMAGE = os.environ.get("KIND_IMAGE", DEFAULT_KIND_IMAGE)
 
 
