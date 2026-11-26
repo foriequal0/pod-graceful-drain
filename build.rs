@@ -1,10 +1,10 @@
 use anyhow::Result;
-use vergen_gitcl::{BuildBuilder, Emitter, GitclBuilder, RustcBuilder};
+use vergen_gitcl::{Build, Emitter, Gitcl, Rustc};
 
 pub fn main() -> Result<()> {
-    let build = BuildBuilder::all_build()?;
-    let gitcl = GitclBuilder::all_git()?;
-    let rustc = RustcBuilder::all_rustc()?;
+    let build = Build::all_build();
+    let gitcl = Gitcl::all_git();
+    let rustc = Rustc::all_rustc();
 
     Emitter::default()
         .add_instructions(&build)?
