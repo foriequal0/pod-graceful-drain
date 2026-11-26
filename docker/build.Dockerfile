@@ -1,4 +1,4 @@
-FROM rust:1.95-slim-trixie as builder
+FROM rust:1.100-slim-trixie as builder
 RUN apt-get update && apt-get install -y git
 RUN mkdir /src
 WORKDIR /src
