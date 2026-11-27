@@ -48,8 +48,8 @@ where
             MutationOutcome::DesiredState(desired) => {
                 return Ok(desired);
             }
-            MutationOutcome::RequirePatch(new_pod) => {
-                patcher.try_patch(&new_pod).await?;
+            MutationOutcome::RequirePatch(new_state) => {
+                patcher.try_patch(&new_state).await?;
             }
         }
     }

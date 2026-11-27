@@ -328,7 +328,7 @@ spec:
             [
                 "wait",
                 "pod/some-pod",
-                "--for=jsonpath={.status.phase}=Running'",
+                "--for=jsonpath={.status.phase}=Running",
                 "--timeout=1m"
             ]
         );
@@ -612,7 +612,7 @@ spec:
                         "--force",
                         "--ignore-daemonsets",
                         "--disable-eviction=true",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
                 let duration = Instant::now() - start;
@@ -652,7 +652,7 @@ spec:
                         "--force",
                         "--ignore-daemonsets",
                         "--disable-eviction=true",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
                 let duration = Instant::now() - start;

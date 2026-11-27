@@ -22,10 +22,10 @@ jobs:
         run: cargo fmt --check --all
         continue-on-error: true
       - id: check
-        run: cargo check --frozen --workspace
+        run: cargo check --frozen --workspace --all-targets
         continue-on-error: true
       - id: clippy
-        run: cargo clippy --frozen -- -D warnings
+        run: cargo clippy --frozen --workspace --all-targets -- -D warnings
         continue-on-error: true
       - if: |
           steps.fmt.outcome != 'success' ||
@@ -74,6 +74,14 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ""
+      - name: Prepare kind
+        run: |
+          # To fix the issue 'kind create cluster' command failing during 'Preparing nodes' step with following error:
+          # ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
+
+          # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
+          sudo sysctl fs.inotify.max_user_watches=524288
+          sudo sysctl fs.inotify.max_user_instances=512
       - name: Setup kind
         run: |
           kind create cluster --image="$KIND_IMAGE" --name test-pgd
@@ -81,7 +89,7 @@ jobs:
         run: |
           curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
       - run: cargo fetch --verbose
-      - run: cargo nextest run --all --frozen
+      - run: cargo nextest run --all --frozen --no-fail-fast
         timeout-minutes: 10
 
   tests-result:
@@ -145,6 +153,14 @@ jobs:
         with:
           name: pod-graceful-drain.tar
       - run: uv sync --frozen
+      - name: Prepare kind
+        run: |
+          # To fix the issue 'kind create cluster' command failing during 'Preparing nodes' step with following error:
+          # ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
+
+          # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
+          sudo sysctl fs.inotify.max_user_watches=524288
+          sudo sysctl fs.inotify.max_user_instances=512
       - name: Smoke test - Setup
         run: |
           docker image load --input pod-graceful-drain.tar

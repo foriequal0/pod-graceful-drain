@@ -258,7 +258,7 @@ spec:
             [
                 "wait",
                 "pod/some-pod",
-                "--for=jsonpath={.status.phase}=Running'",
+                "--for=jsonpath={.status.phase}=Running",
                 "--timeout=1m"
             ]
         );
@@ -453,7 +453,7 @@ spec:
                         "drain",
                         "--force",
                         "--ignore-daemonsets",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
             }
@@ -478,7 +478,7 @@ spec:
                         "drain",
                         "--force",
                         "--ignore-daemonsets",
-                        &format!("{}-worker", &context.cluster_name)
+                        &format!("{}-worker", context.cluster_name)
                     ]
                 );
             }
