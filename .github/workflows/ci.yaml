@@ -54,7 +54,7 @@ jobs:
   test:
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    strategy:
+    strategy: &strategy-kind-images
       fail-fast: false
       matrix:
         kind_image:
@@ -74,7 +74,8 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ""
-      - name: Prepare kind
+      - &prepare-kind
+        name: Prepare kind
         run: |
           # To fix the issue 'kind create cluster' command failing during 'Preparing nodes' step with following error:
           # ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
@@ -129,19 +130,7 @@ jobs:
   smoke-test:
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        kind_image:
-          - "v1.35.1"
-          - "v1.34.3"
-          - "v1.33.7"
-          - "v1.32.11"
-          - "v1.31.14"
-          - "v1.30.13"
-          - "v1.29.14"
-          - "v1.28.15"
-          - "v1.27.16"
+    strategy: *strategy-kind-images
     env:
       KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     needs:
@@ -153,14 +142,7 @@ jobs:
         with:
           name: pod-graceful-drain.tar
       - run: uv sync --frozen
-      - name: Prepare kind
-        run: |
-          # To fix the issue 'kind create cluster' command failing during 'Preparing nodes' step with following error:
-          # ERROR: failed to create cluster: could not find a log line that matches "Reached target .*Multi-User System.*|detected cgroup v1"
-
-          # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
-          sudo sysctl fs.inotify.max_user_watches=524288
-          sudo sysctl fs.inotify.max_user_instances=512
+      - *prepare-kind
       - name: Smoke test - Setup
         run: |
           docker image load --input pod-graceful-drain.tar
