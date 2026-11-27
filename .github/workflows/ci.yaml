@@ -89,7 +89,7 @@ jobs:
         run: |
           curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
       - run: cargo fetch --verbose
-      - run: cargo nextest run --all --frozen
+      - run: cargo nextest run --all --frozen --no-fail-fast
         timeout-minutes: 10
 
   tests-result:
