@@ -7,12 +7,12 @@ authors = [
 ]
 dependencies = []
 readme = "README.md"
-requires-python = ">= 3.10"
+requires-python = ">= 3.14"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
-    "boto3>=1.43.8",
-    "click>=8.3.3",
+    "pytest>=9.2.0",
+    "boto3>=1.44.12",
+    "click>=8.5.1",
     "pytest-xdist>=3.8.0",
 ]
