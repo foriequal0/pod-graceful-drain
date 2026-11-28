@@ -1,4 +1,4 @@
-FROM rust:1.95-slim-trixie AS cache
+FROM rust:1.100-slim-trixie AS cache
 
 # prepare git cli
 RUN apt-get update && apt-get install -y git

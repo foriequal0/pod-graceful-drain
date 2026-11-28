@@ -15,6 +15,7 @@ use crate::tests::utils::event_tracker::EventTracker;
 use crate::tests::utils::operations::install_test_host_service;
 use crate::tests::utils::pod_state::is_pod_patched;
 use crate::tests::utils::self_signed_cert;
+use crate::utils::unwrap_or_default_deref;
 use crate::{
     CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
     apply_yaml, kubectl, start_reflectors, start_webhook,
@@ -184,7 +185,10 @@ spec:
                     .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
                     .await
                     .unwrap();
-                !es_list.items.iter().any(|es| es.endpoints.is_empty())
+                !es_list
+                    .items
+                    .iter()
+                    .any(|es| unwrap_or_default_deref(&es.endpoints).is_empty())
             },
             "pod shouldn't have been removed from the endpointslices"
         );

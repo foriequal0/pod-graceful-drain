@@ -1,6 +1,3 @@
-use std::convert::Into;
-use std::fmt::Display;
-
 use eyre::Result;
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
@@ -10,12 +7,15 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use kube::api::PostParams;
 use kube::runtime::reflector::Lookup;
 use kube::{Api, Resource};
+use std::convert::Into;
+use std::fmt::Display;
 use thiserror::Error;
 
 use crate::error_codes::is_404_not_found_error;
 use crate::error_types::{Bug, NotMyFault};
 use crate::pdb::get_pdb_for;
 use crate::pod_state::is_pod_ready;
+use crate::utils::unwrap_or_default;
 use crate::{ApiResolver, Stores, try_some};
 
 #[derive(Debug, Error)]
@@ -128,10 +128,13 @@ fn check_pod_disruption_policy(
         }
         Some(unhealthy_pod_eviction_policy_type::IF_HEALTHY_BUDGET) => {
             // unhealthy pod can be disrupted when healthy budget allows
-            if let Some(status) = pdb.status.as_ref()
-                && status.current_healthy >= status.desired_healthy
-                && status.desired_healthy > 0
-            {
+            let Some(status) = pdb.status.as_ref() else {
+                return Ok(PodDisruptionPolicyResult::EvictIfBudgetAllows);
+            };
+
+            let current_healthy = unwrap_or_default(status.current_healthy);
+            let desired_healthy = unwrap_or_default(status.desired_healthy);
+            if current_healthy >= desired_healthy && desired_healthy > 0 {
                 return Ok(PodDisruptionPolicyResult::Evict);
             };
 
@@ -162,7 +165,7 @@ fn check_and_decrease_impl(
 ) -> Result<(), DecreasePodDisruptionBudgetError> {
     let status = pdb.status.get_or_insert_default();
 
-    if status.observed_generation.unwrap_or(0) < pdb.metadata.generation.unwrap_or(0) {
+    if unwrap_or_default(status.observed_generation) < unwrap_or_default(pdb.metadata.generation) {
         return Err(DecreasePodDisruptionBudgetError::TooManyRequests(
             TooManyRequestsError {
                 message: String::from(
@@ -177,7 +180,8 @@ fn check_and_decrease_impl(
         ));
     }
 
-    if status.disruptions_allowed < 0 {
+    let disruptions_allowed = status.disruptions_allowed.get_or_insert_default();
+    if *disruptions_allowed < 0 {
         return Err(NotMyFault {
             message: String::from("pdb disruptions allowed is negative"),
             source: None,
@@ -185,13 +189,7 @@ fn check_and_decrease_impl(
         .into());
     }
 
-    if status
-        .disrupted_pods
-        .as_ref()
-        .map(|x| x.len())
-        .unwrap_or_default()
-        > MAX_DISRUPTED_POD_SIZE
-    {
+    if unwrap_or_default(status.disrupted_pods.as_ref().map(|x| x.len())) > MAX_DISRUPTED_POD_SIZE {
         return Err(NotMyFault {
             message: String::from(
                 "DisruptedPods map too big - too many evictions not confirmed by PDB controller",
@@ -201,7 +199,7 @@ fn check_and_decrease_impl(
         .into());
     }
 
-    if status.disruptions_allowed == 0 {
+    if *disruptions_allowed == 0 {
         return Err(DecreasePodDisruptionBudgetError::TooManyRequests(
             TooManyRequestsError {
                 message: String::from(
@@ -211,15 +209,15 @@ fn check_and_decrease_impl(
                 causes: vec![format!(
                     "The disruption budget {} needs {} healthy pods and has {} currently",
                     pdb.metadata.name.as_deref().unwrap_or_default(),
-                    status.desired_healthy,
-                    status.current_healthy,
+                    unwrap_or_default(status.desired_healthy),
+                    unwrap_or_default(status.current_healthy),
                 )],
             },
         ));
     }
 
-    status.disruptions_allowed -= 1;
-    if status.disruptions_allowed == 0 {
+    *disruptions_allowed -= 1;
+    if *disruptions_allowed == 0 {
         update_disruption_allowed_condition(status, now);
     }
 
@@ -240,7 +238,9 @@ const CONDITION_FALSE: &str = "False";
 fn update_disruption_allowed_condition(status: &mut PodDisruptionBudgetStatus, now: Timestamp) {
     let conditions = status.conditions.get_or_insert_default();
 
-    if status.disruptions_allowed > 0 {
+    let disruptions_allowed = status.disruptions_allowed.get_or_insert_default();
+
+    if *disruptions_allowed > 0 {
         set_status_condition(
             conditions,
             Condition {
@@ -528,7 +528,7 @@ mod tests {
                 "disruptionAllowed should not be negative"
             );
             assert_matches!(
-                try_some!(pdb.status?.disruptions_allowed),
+                try_some!(pdb.status?.disruptions_allowed?),
                 Some(-1),
                 "should not decrease disruption budget if it's already 0"
             )
@@ -546,7 +546,7 @@ mod tests {
                 "should not decrease disruption budget if it's already 0"
             );
             assert_matches!(
-                try_some!(pdb.status?.disruptions_allowed),
+                try_some!(pdb.status?.disruptions_allowed?),
                 Some(0),
                 "should not decrease disruption budget if it's already 0"
             )

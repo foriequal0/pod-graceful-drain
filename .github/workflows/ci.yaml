@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust components
         run: |
           rustup component add clippy
@@ -45,8 +45,8 @@ jobs:
     timeout-minutes: 3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - run: |
           uv format --check --diff
         if: always()
@@ -58,20 +58,20 @@ jobs:
       fail-fast: false
       matrix:
         kind_image:
-          - "v1.35.1"
-          - "v1.34.3"
-          - "v1.33.7"
+          - "v1.37.0"
+          - "v1.36.4"
+          - "v1.35.8"
+          - "v1.34.11"
+          - "v1.33.12"
           - "v1.32.11"
           - "v1.31.14"
           - "v1.30.13"
           - "v1.29.14"
-          - "v1.28.15"
-          - "v1.27.16"
     env:
       KIND_IMAGE: kindest/node:${{matrix.kind_image}}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
         with:
           rustflags: ""
       - &prepare-kind
@@ -83,6 +83,9 @@ jobs:
           # https://kind.sigs.k8s.io/docs/user/known-issues/#pod-errors-due-to-too-many-open-files
           sudo sysctl fs.inotify.max_user_watches=524288
           sudo sysctl fs.inotify.max_user_instances=512
+          
+          # it's easier to use podman rather than configuring `--add-host=host.docker.internal:host-gateway` for kind cluster.
+          echo "KIND_EXPERIMENTAL_PROVIDER=podman" >> $GITHUB_ENV
       - name: Setup kind
         run: |
           kind create cluster --image="$KIND_IMAGE" --name test-pgd
@@ -109,14 +112,14 @@ jobs:
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: helm lint charts/pod-graceful-drain --strict
 
   build-image:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: |
           docker build --file docker/build.Dockerfile \
             --tag "localhost/pod-graceful-drain:latest" \
@@ -136,8 +139,8 @@ jobs:
     needs:
       - build-image
     steps:
-      - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - uses: actions/download-artifact@v8
         with:
           name: pod-graceful-drain.tar
@@ -157,7 +160,7 @@ jobs:
             --set logLevel=info\\,pod_graceful_drain=trace\\,pod_graceful_drain::reflector=info \
             --wait=true --timeout=1m
       - name: Smoke test
-        run: uv run --frozen pytest -- --capture=tee-sys -n auto
+        run: uv run --frozen pytest --capture=tee-sys -n auto
         timeout-minutes: 10
 
   smoke-tests-result:

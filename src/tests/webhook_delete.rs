@@ -18,9 +18,10 @@ use crate::tests::utils::pod_state::{
     is_pod_patched, pod_is_alive, pod_is_alive_for, pod_is_deleted_within,
 };
 use crate::tests::utils::self_signed_cert;
+use crate::utils::unwrap_or_default_deref;
 use crate::{
     CONTROLLER_NAME, Config, DownwardAPI, LoadBalancingConfig, ServiceRegistry, WebhookConfig,
-    apply_yaml, eventually, kubectl, start_reflectors, start_webhook,
+    apply_yaml, eventually, kubectl, start_reflectors, start_webhook, try_some,
 };
 
 async fn setup(context: &TestContext, config: Config) {
@@ -181,7 +182,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             }),
             "pdb.status.currentHealthy should not be 0 yet",
         );
@@ -214,7 +215,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 0
+                try_some!(pdb.status?.current_healthy?) == Some(&0)
             }),
             "pdb.status.currentHealthy is correctly set to 0",
         );
@@ -227,7 +228,10 @@ spec:
                     .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
                     .await
                     .unwrap();
-                es_list.items.iter().all(|es| es.endpoints.is_empty())
+                es_list
+                    .items
+                    .iter()
+                    .all(|es| unwrap_or_default_deref(&es.endpoints).is_empty())
             }),
             "pod should've been removed from the endpointslices"
         );
@@ -636,7 +640,10 @@ spec:
                     .list(&ListParams::default().labels("kubernetes.io/service-name=some-service"))
                     .await
                     .unwrap();
-                es_list.items.iter().all(|es| es.endpoints.is_empty())
+                es_list
+                    .items
+                    .iter()
+                    .all(|es| unwrap_or_default_deref(&es.endpoints).is_empty())
             }),
             "pod should've been removed from the endpointslices"
         );

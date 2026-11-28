@@ -102,13 +102,8 @@ macro_rules! apply_yaml {
 }
 
 /// If you run a kind cluster in the docker, you can connect to the host with `host.docker.internal`
-/// If it were in the podman, then it would've been `host.containers.internal`
-/// Moreover, rootless podman requires `--network=slirp4netns:allow_host_loopback=true` argument,
-/// but the kind podman provider doesn't pass the argument to create a cluster.
-/// Even if it does, windows podman doesn't handle that argument well for now.
-/// So, this is a reliable solution.
+/// If it were in the podman, it's `host.containers.internal` as well as `host.docker.internal`.
 pub async fn install_test_host_service(context: &TestContext) -> String {
-    let local_ip = local_ip_address::local_ip().unwrap();
     // Headless service
     apply_yaml!(
         context,
@@ -118,7 +113,7 @@ metadata:
   name: test-host
 spec:
   type: ExternalName
-  externalName: {local_ip}
+  externalName: host.docker.internal
 "#
     );
 

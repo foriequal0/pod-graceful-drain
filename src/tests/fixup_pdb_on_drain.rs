@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::pdb::fixup::force_trigger_sync;
 use crate::tests::utils::context::within_test_namespace;
-use crate::{apply_yaml, eventually, kubectl};
+use crate::{apply_yaml, eventually, kubectl, try_some};
 use k8s_openapi::api::core::v1::Pod;
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 use kube::ResourceExt;
@@ -52,7 +52,7 @@ spec:
             {
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             },
             "pdb.status.currentHealthy is correctly set to 1"
         );
@@ -63,7 +63,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 0
+                try_some!(pdb.status?.current_healthy?) == Some(&0)
             }),
             "pdb.status.currentHealthy is correctly set to 0"
         );
@@ -116,7 +116,7 @@ spec:
             {
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             },
             "pdb.status.currentHealthy is correctly set to 1"
         );
@@ -128,7 +128,7 @@ spec:
             {
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             },
             "pdb.status.currentHealthy is still incorrectly 1"
         );
@@ -181,7 +181,7 @@ spec:
             {
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 1
+                try_some!(pdb.status?.current_healthy?) == Some(&1)
             },
             "pdb.status.currentHealthy is correctly set to 1"
         );
@@ -210,7 +210,7 @@ spec:
             eventually!({
                 let pdb: PodDisruptionBudget =
                     context.api_resolver.all().get("some-pod").await.unwrap();
-                pdb.status.unwrap().current_healthy == 0
+                try_some!(pdb.status?.current_healthy?) == Some(&0)
             }),
             "pdb.status.currentHealthy is correctly set to 0"
         );
